@@ -93,7 +93,7 @@ def analyze_report(api_key, text, report_type):
     except Exception as e:
         return f"❌ พบข้อผิดพลาดของระบบ: {e}"
     
-    def create_word_doc(feedback_text):
+def create_word_doc(feedback_text):
     """ฟังก์ชันแปลงข้อความผลการประเมินเป็นไฟล์ Word"""
     doc = Document()
     doc.add_heading('ผลการประเมินรายงานสอบสวนโรค (Epi-Reviewer)', 0)
