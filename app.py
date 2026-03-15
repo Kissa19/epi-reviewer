@@ -1,7 +1,8 @@
 import streamlit as st
 import PyPDF2
 import google.generativeai as genai
-
+import io
+from docx import Document
 # ==========================================
 # 1. ตั้งค่า System Prompt (กฎเกณฑ์ของ AI)
 # ==========================================
@@ -91,7 +92,20 @@ def analyze_report(api_key, text, report_type):
             
     except Exception as e:
         return f"❌ พบข้อผิดพลาดของระบบ: {e}"
-
+    
+    def create_word_doc(feedback_text):
+    """ฟังก์ชันแปลงข้อความผลการประเมินเป็นไฟล์ Word"""
+    doc = Document()
+    doc.add_heading('ผลการประเมินรายงานสอบสวนโรค (Epi-Reviewer)', 0)
+    
+    # แยกข้อความตามบรรทัดเพื่อใส่ใน Word
+    for line in feedback_text.split('\n'):
+        doc.add_paragraph(line)
+        
+    # บันทึกไฟล์ลงในหน่วยความจำ (BytesIO) เพื่อเตรียมให้ดาวน์โหลด
+    bio = io.BytesIO()
+    doc.save(bio)
+    return bio.getvalue()
 # ==========================================
 # 3. ส่วนหน้าตาแอปพลิเคชัน (UI)
 # ==========================================
