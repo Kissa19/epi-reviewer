@@ -53,7 +53,7 @@ def analyze_report(api_key, text, report_type):
     
     # แนะนำให้ใช้รุ่น 1.5 Pro เนื่องจากอ่านเอกสารภาษาไทยและจับบริบทได้แม่นยำที่สุด
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro-latest",
+        model_name="gemini-pro",
         system_instruction=dynamic_prompt
     )
     
