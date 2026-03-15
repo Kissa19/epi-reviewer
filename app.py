@@ -161,5 +161,15 @@ with col2:
                     with st.container(border=True):
                         st.markdown(feedback)
                         
+                    # 4. สร้างปุ่มดาวน์โหลดเป็นไฟล์ Word
+                    word_file = create_word_doc(feedback)
+                    st.download_button(
+                        label="💾 ดาวน์โหลดผลการประเมิน (Word)",
+                        data=word_file,
+                        file_name="Epi_Review_Feedback.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True
+                    )
+                        
                 except Exception as e:
                     st.error(f"เกิดข้อผิดพลาดในการวิเคราะห์: {e}")
