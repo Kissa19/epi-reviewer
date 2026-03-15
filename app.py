@@ -45,34 +45,52 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def analyze_report(api_key, text, report_type):
-    """ส่งข้อมูลให้ Gemini วิเคราะห์ โดยตรวจหาโมเดลที่รองรับอัตโนมัติ"""
+    """ส่งข้อมูลให้ Gemini วิเคราะห์ แบบป้องกัน Error 100%"""
     genai.configure(api_key=api_key)
     
     dynamic_prompt = SYSTEM_INSTRUCTION + f"\n\n**ข้อมูลเพิ่มเติมจากระบบ:** รายงานฉบับนี้เป็นการ {report_type}"
     prompt_text = f"โปรดประเมินรายงานสอบสวนโรคต่อไปนี้:\n\n{text}"
     
-    # 1. ดึงรายชื่อโมเดลทั้งหมดที่ API Key ของคุณรองรับ
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
-    # 2. เลือกโมเดลที่ดีที่สุดตามลำดับ (1.5 Pro -> 1.5 Flash -> 1.0 Pro)
-    if 'models/gemini-1.5-pro' in available_models or 'models/gemini-1.5-pro-latest' in available_models:
-        model_name = 'gemini-1.5-pro' if 'models/gemini-1.5-pro' in available_models else 'gemini-1.5-pro-latest'
-        model = genai.GenerativeModel(model_name=model_name, system_instruction=dynamic_prompt)
-        response = model.generate_content(prompt_text)
+    try:
+        # 1. ดึงรายชื่อโมเดลทั้งหมดที่ API Key ของคุณมีสิทธิ์ใช้จริงๆ
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                # ตัดคำว่า models/ ออก เพื่อป้องกัน Error 404
+                available_models.append(m.name.replace("models/", ""))
+                
+        if not available_models:
+            return "❌ ข้อผิดพลาด: API Key ของคุณไม่มีสิทธิ์เข้าถึงโมเดลใดๆ เลย กรุณาสร้าง API Key ใหม่"
+
+        # 2. คัดเลือกโมเดลที่ดีที่สุด (เรียงตามลำดับความฉลาด 1.5 Pro -> 1.5 Flash -> รุ่นอื่นๆ)
+        target_model = available_models[0] # ตั้งค่าเริ่มต้นเป็นตัวแรกที่ระบบอนุญาต
         
-    elif 'models/gemini-1.5-flash' in available_models or 'models/gemini-1.5-flash-latest' in available_models:
-        model_name = 'gemini-1.5-flash' if 'models/gemini-1.5-flash' in available_models else 'gemini-1.5-flash-latest'
-        model = genai.GenerativeModel(model_name=model_name, system_instruction=dynamic_prompt)
-        response = model.generate_content(prompt_text)
-        
-    else:
-        # Fallback สำหรับรุ่นเก่า (Gemini 1.0 Pro) ที่ไม่รองรับคำสั่ง system_instruction
-        model = genai.GenerativeModel(model_name='gemini-pro')
-        # นำกฎเกณฑ์มารวมกับข้อความรายงานตรงๆ
-        full_prompt = f"{dynamic_prompt}\n\n{prompt_text}"
-        response = model.generate_content(full_prompt)
-        
-    return response.text
+        for name in available_models:
+            if "gemini-1.5-pro" in name:
+                target_model = name
+                break
+        else:
+            for name in available_models:
+                if "gemini-1.5-flash" in name:
+                    target_model = name
+                    break
+
+        # 3. เริ่มทำการวิเคราะห์
+        try:
+            # พยายามรันแบบใช้ System Instruction (สำหรับ Gemini 1.5)
+            model = genai.GenerativeModel(model_name=target_model, system_instruction=dynamic_prompt)
+            response = model.generate_content(prompt_text)
+            return response.text
+            
+        except Exception:
+            # หากไลบรารีเก่าเกินไปจนไม่รู้จัก System Instruction ให้ใช้วิธีรวบข้อความแทน
+            model = genai.GenerativeModel(model_name=target_model)
+            full_prompt = f"คำสั่งของคุณคือ:\n{dynamic_prompt}\n\nข้อมูลรายงาน:\n{prompt_text}"
+            response = model.generate_content(full_prompt)
+            return response.text
+            
+    except Exception as e:
+        return f"❌ พบข้อผิดพลาดของระบบ: {e}"
 
 # ==========================================
 # 3. ส่วนหน้าตาแอปพลิเคชัน (UI)
