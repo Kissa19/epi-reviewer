@@ -45,21 +45,33 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def analyze_report(api_key, text, report_type):
-    """ส่งข้อมูลให้ Gemini วิเคราะห์"""
+    """ส่งข้อมูลให้ Gemini วิเคราะห์ โดยตรวจหาโมเดลที่รองรับอัตโนมัติ"""
     genai.configure(api_key=api_key)
     
-    # เพิ่มบริบทเรื่องประเภทรายงานที่ผู้ใช้เลือกบนหน้าเว็บ
     dynamic_prompt = SYSTEM_INSTRUCTION + f"\n\n**ข้อมูลเพิ่มเติมจากระบบ:** รายงานฉบับนี้เป็นการ {report_type}"
+    prompt_text = f"โปรดประเมินรายงานสอบสวนโรคต่อไปนี้:\n\n{text}"
     
-    # แนะนำให้ใช้รุ่น 1.5 Pro เนื่องจากอ่านเอกสารภาษาไทยและจับบริบทได้แม่นยำที่สุด
-    # เปลี่ยนชื่อโมเดลเป็น gemini-1.5-flash
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction=dynamic_prompt
-    )
+    # 1. ดึงรายชื่อโมเดลทั้งหมดที่ API Key ของคุณรองรับ
+    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     
-    prompt = f"โปรดประเมินรายงานสอบสวนโรคต่อไปนี้:\n\n{text}"
-    response = model.generate_content(prompt)
+    # 2. เลือกโมเดลที่ดีที่สุดตามลำดับ (1.5 Pro -> 1.5 Flash -> 1.0 Pro)
+    if 'models/gemini-1.5-pro' in available_models or 'models/gemini-1.5-pro-latest' in available_models:
+        model_name = 'gemini-1.5-pro' if 'models/gemini-1.5-pro' in available_models else 'gemini-1.5-pro-latest'
+        model = genai.GenerativeModel(model_name=model_name, system_instruction=dynamic_prompt)
+        response = model.generate_content(prompt_text)
+        
+    elif 'models/gemini-1.5-flash' in available_models or 'models/gemini-1.5-flash-latest' in available_models:
+        model_name = 'gemini-1.5-flash' if 'models/gemini-1.5-flash' in available_models else 'gemini-1.5-flash-latest'
+        model = genai.GenerativeModel(model_name=model_name, system_instruction=dynamic_prompt)
+        response = model.generate_content(prompt_text)
+        
+    else:
+        # Fallback สำหรับรุ่นเก่า (Gemini 1.0 Pro) ที่ไม่รองรับคำสั่ง system_instruction
+        model = genai.GenerativeModel(model_name='gemini-pro')
+        # นำกฎเกณฑ์มารวมกับข้อความรายงานตรงๆ
+        full_prompt = f"{dynamic_prompt}\n\n{prompt_text}"
+        response = model.generate_content(full_prompt)
+        
     return response.text
 
 # ==========================================
