@@ -52,8 +52,9 @@ def analyze_report(api_key, text, report_type):
     dynamic_prompt = SYSTEM_INSTRUCTION + f"\n\n**ข้อมูลเพิ่มเติมจากระบบ:** รายงานฉบับนี้เป็นการ {report_type}"
     
     # แนะนำให้ใช้รุ่น 1.5 Pro เนื่องจากอ่านเอกสารภาษาไทยและจับบริบทได้แม่นยำที่สุด
+    # เปลี่ยนชื่อโมเดลเป็น gemini-1.5-flash
     model = genai.GenerativeModel(
-        model_name="gemini-pro",
+        model_name="gemini-1.5-flash",
         system_instruction=dynamic_prompt
     )
     
