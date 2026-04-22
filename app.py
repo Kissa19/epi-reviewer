@@ -5,33 +5,44 @@ import io
 from docx import Document
 
 # ==========================================
-# 1. ตั้งค่าหน้าจอและ Theme (DDC Pink & Prompt Font)
+# 1. ตั้งค่าหน้าจอและ Theme (DDC Pink & Kanit Font)
 # ==========================================
 st.set_page_config(page_title="EpiScholar | AI Reviewer", page_icon="📋", layout="wide")
 
-# Custom CSS สำหรับฟอนต์ Prompt และธีมสีชมพู-ขาว
+# Custom CSS สำหรับฟอนต์ Kanit, ธีมสีชมพู และปรับสี Footer ใน Sidebar
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap');
 
-    /* ฟอนต์ทั้งระบบ */
+    /* กำหนดฟอนต์ Kanit ทั้งระบบ */
     html, body, [class*="css"], .stMarkdown, .stText, .stButton, .stTextInput, .stSelectbox, .stRadio, .stHeader {
-        font-family: 'Prompt', sans-serif !important;
+        font-family: 'Kanit', sans-serif !important;
     }
 
-    /* สีพื้นหลังและ Header */
+    /* สีพื้นหลังหลัก */
     .stApp {
         background-color: #FFFFFF;
     }
     
     /* ปรับแต่ง Sidebar */
     section[data-testid="stSidebar"] {
-        background-color: #880E4F !important;
+        background-color: #880E4F !important; /* ชมพูเข้มกรมควบคุมโรค */
         color: white !important;
     }
     section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] label {
         color: white !important;
+    }
+
+    /* ปรับแต่งข้อความ "พัฒนาโดย" ให้เป็นสีเขียวเข้ม */
+    .sidebar-footer {
+        color: #006400 !important; /* สีเขียวเข้ม (Dark Green) */
+        font-size: 14px;
+        font-weight: 400;
+        margin-top: 20px;
+        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
     }
 
     /* ปุ่ม Primary (สีชมพูกรมควบคุมโรค) */
@@ -41,6 +52,7 @@ st.markdown(
         border-radius: 8px;
         border: none;
         font-weight: 600;
+        font-family: 'Kanit', sans-serif !important;
     }
     div.stButton > button:first-child:hover {
         background-color: #AD1457;
@@ -54,6 +66,7 @@ st.markdown(
         padding: 20px;
         border-radius: 12px;
         border-left: 5px solid #D81B60;
+        font-family: 'Kanit', sans-serif !important;
     }
     </style>
     """,
@@ -61,7 +74,7 @@ st.markdown(
 )
 
 # ==========================================
-# 2. กฎเกณฑ์ของ AI (System Instruction ล่าสุด)
+# 2. กฎเกณฑ์ของ AI (System Instruction เวอร์ชันผู้เชี่ยวชาญ)
 # ==========================================
 SYSTEM_INSTRUCTION = """
 บทบาท (Role):
@@ -77,21 +90,18 @@ SYSTEM_INSTRUCTION = """
 เช็คว่ามี: 1. ชื่อเรื่อง 2. ผู้รายงานและทีม 3. บทคัดย่อ 4. ความเป็นมา 5. วัตถุประสงค์ 6. วิธีการสอบสวน 7. ผลการสอบสวน 8. มาตรการควบคุมป้องกันโรค 9. วิจารณ์ผล 10. ปัญหาและข้อจำกัด 11. ข้อเสนอแนะ 12. สรุปผล 13. กิตติกรรมประกาศ 14. เอกสารอ้างอิง
 
 ขั้นตอนที่ 2: ประเมินคุณภาพและให้ข้อเสนอแนะรายหัวข้อ
-* วัตถุประสงค์: ตรวจสอบว่าสอดคล้องกับประเภทการสอบสวนหรือไม่ 
-    - สอบสวนเฉพาะราย: ต้องมี (เพื่อยืนยันการวินิจฉัย, ค้นหาแหล่งโรค/ลักษณะการเกิดโรค, หาแนวทางควบคุมป้องกัน)
-    - สอบสวนการระบาด: ต้องมี (1.ยืนยันการวินิจฉัยและการระบาด 2.ศึกษาลักษณะทางระบาดวิทยาตาม Person, Time, Place 3.ค้นหาแหล่งโรค/วิธีการถ่ายทอด/ผู้สัมผัส 4.หามาตรการควบคุมป้องกัน)
-* วิธีการสอบสวน: เช็คนิยามผู้ป่วย (Person, Place, Time, Clinical criteria)
-    - Time: การค้นหาผู้ป่วยต้องครอบคลุมอย่างน้อย 1 เท่าของระยะฟักตัวยาวสุดก่อนหน้า Index Case
-    - อาการ: เลือกอาการที่เฉพาะเจาะจง (Specific) อ้างอิงนิยามปี 2563 (สงสัย/เข้าข่าย/ยืนยัน)
-* การศึกษาระบาดวิทยาเชิงวิเคราะห์ (Optional): เช็คการระบุรูปแบบการศึกษา (Cohort, Case-Control) 
-* ผลการสอบสวน: เช็ค Epidemic Curve (Time interval 1/3-1/8 ของระยะฟักตัว), ตาราง Bivariate/Multiple Logistic Regression, การสำรวจสิ่งแวดล้อม (ค่า อ.31, SI-2) และผล Lab
-* มาตรการควบคุมป้องกันโรค: ต้องระบุกิจกรรม 5W1H (ใคร ทำอะไร ที่ไหน เมื่อไหร่ อย่างไร) ทั้งระยะสั้นและยาว
-* วิจารณ์ผล: ห้ามอธิบายตัวเลขซ้ำกับผลการสอบสวน ให้อภิปรายจุดอ่อน ข้อจำกัด และเปรียบเทียบเอกสารวิชาการ
-* สรุปผล: สั้น กระชับ ตอบวัตถุประสงค์ ระบุว่าควบคุมโรคได้หรือไม่ (ภายใน 2 เท่าระยะฟักตัวยาวสุด)
+* วัตถุประสงค์: ตรวจสอบว่าสอดคล้องกับประเภทการสอบสวนหรือไม่ (เฉพาะราย vs การระบาด)
+* วิธีการสอบสวน: เช็คนิยามผู้ป่วย (Person, Place, Time, Clinical criteria) 
+    - เวลา (Time): ค้นหาผู้ป่วยครอบคลุมอย่างน้อย 1 เท่าของระยะฟักตัวยาวสุดก่อนหน้า Index Case
+    - อาการ: เลือกอาการที่เฉพาะเจาะจง อ้างอิงนิยามปี 2563
+* ผลการสอบสวน: เช็ค Epidemic Curve (Time interval 1/3-1/8 ของระยะฟักตัว), ตาราง Bivariate/Multiple Logistic Regression, การสำรวจสิ่งแวดล้อม (อ.31, SI-2)
+* มาตรการควบคุมป้องกันโรค: ระบุกิจกรรม 5W1H (ใคร ทำอะไร ที่ไหน เมื่อไหร่ อย่างไร)
+* วิจารณ์ผล: ไม่อธิบายตัวเลขซ้ำ ให้อภิปรายความหมายและข้อจำกัด
+* สรุปผล: กระชับ ตอบวัตถุประสงค์ และระบุว่าควบคุมโรคได้หรือไม่ (ภายใน 2 เท่าระยะฟักตัวยาวสุด)
 
 รูปแบบผลลัพธ์ (Output Format):
 1. คำแนะนำเบื้องต้น (แจ้งเตือน PII ถ้ามี)
-2. 📋 ส่วนที่ 1: การตรวจสอบความครบถ้วน 14 หัวข้อหลัก (ใช้ ✅ หรือ ❌)
+2. 📋 ส่วนที่ 1: การตรวจสอบความครบถ้วน 14 หัวข้อหลัก (✅/❌)
 3. 📝 ส่วนที่ 2: ความคิดเห็นและข้อเสนอแนะรายหัวข้อ
 4. 💡 ส่วนที่ 3: ตัวอย่างการปรับแก้
 """
@@ -109,14 +119,13 @@ def extract_text_from_pdf(pdf_file):
 
 def analyze_report(api_key, text, report_type):
     genai.configure(api_key=api_key)
-    dynamic_prompt = SYSTEM_INSTRUCTION + f"\n\n**ข้อมูลเพิ่มเติมจากระบบ:** รายงานฉบับนี้เป็นการ {report_type}"
-    
+    dynamic_prompt = SYSTEM_INSTRUCTION + f"\n\n**ข้อมูลเพิ่มเติม:** รายงานนี้เป็นการ {report_type}"
     try:
         model = genai.GenerativeModel(model_name="gemini-1.5-flash", system_instruction=dynamic_prompt)
-        response = model.generate_content(f"โปรดประเมินรายงานสอบสวนโรคต่อไปนี้:\n\n{text}")
+        response = model.generate_content(f"โปรดประเมินรายงานต่อไปนี้:\n\n{text}")
         return response.text
     except Exception as e:
-        return f"❌ พบข้อผิดพลาดของระบบ: {e}"
+        return f"❌ พบข้อผิดพลาด: {e}"
 
 def create_word_doc(feedback_text):
     doc = Document()
@@ -133,35 +142,28 @@ def create_word_doc(feedback_text):
 st.title("📋 EpiScholar: ระบบประเมินรายงานอัจฉริยะ")
 st.markdown("**กลุ่มระบาดวิทยาและตอบโต้ภาวะฉุกเฉินทางสาธารณสุข สคร.8 อุดรธานี**")
 
-# --- ส่วนวิธีการใช้งาน ---
-with st.expander("📖 วิธีการใช้งานระบบ (User Manual)", expanded=False):
-    st.markdown("""
-    1. **ระบุ API Key:** ใส่ Gemini API Key ที่แถบด้านซ้าย
-    2. **เลือกประเภทรายงาน:** เลือก 'Outbreak' หรือ 'Single Case'
-    3. **อัปโหลด PDF:** เลือกไฟล์รายงานฉบับสมบูรณ์ที่ทำเป็นนิรนาม (Anonymized) แล้ว
-    4. **ประเมินผล:** กดปุ่มเริ่มตรวจสอบ และรอ AI วิเคราะห์ตามมาตรฐาน 14 หัวข้อ
-    5. **ดาวน์โหลด:** นำผลการประเมินไปปรับแก้รายงานในรูปแบบไฟล์ Word
-    """)
-
-st.divider()
-
 # Sidebar
 with st.sidebar:
-    st.image("https://via.placeholder.com/100?text=ODPC8", width=100) # เปลี่ยนเป็น URL โลโก้จริงได้ครับ
     st.header("⚙️ ตั้งค่าระบบ")
     api_key_input = st.text_input("🔑 Gemini API Key", type="password")
     st.markdown("---")
-    st.info("พัฒนาโดย: กลุ่มระบาดวิทยา สคร.8 อุดรธานี")
+    # ส่วน Footer ที่ปรับสีเขียวเข้มและเปลี่ยนชื่อหน่วยงาน
+    st.markdown('<div class="sidebar-footer">พัฒนาโดยกลุ่มระบาดวิทยาและตอบโต้ภาวะฉุกเฉินทางสาธารณสุข สคร.8 อุดรธานี กรมควบคุมโรค</div>', unsafe_allow_html=True)
 
-# Main Interface
+# Main UI
+with st.expander("📖 วิธีการใช้งานระบบ (User Manual)", expanded=False):
+    st.markdown("""
+    1. **ตั้งค่า API Key:** ใส่รหัส Gemini API ที่แถบซ้ายมือ
+    2. **เลือกประเภทรายงาน:** เลือกประเภทการสอบสวนให้ถูกต้อง
+    3. **อัปโหลด PDF:** ไฟล์รายงานต้องทำข้อมูลเป็นนิรนาม (Anonymized) แล้ว
+    4. **ประเมินผล:** กดปุ่มเริ่มตรวจสอบ และรอ AI วิเคราะห์ตามมาตรฐาน 14 หัวข้อ
+    """)
+
 col1, col2 = st.columns([1, 2])
 
 with col1:
     st.subheader("📥 ข้อมูลนำเข้า")
-    report_type = st.radio(
-        "ประเภทการสอบสวน:",
-        ["สอบสวนการระบาด (Outbreak)", "สอบสวนเฉพาะราย (Single Case)"]
-    )
+    report_type = st.radio("ประเภทการสอบสวน:", ["สอบสวนการระบาด (Outbreak)", "สอบสวนเฉพาะราย (Single Case)"])
     uploaded_file = st.file_uploader("อัปโหลดไฟล์รายงาน (PDF)", type=["pdf"])
 
 with col2:
@@ -177,7 +179,6 @@ with col2:
                     raw_text = extract_text_from_pdf(uploaded_file)
                     feedback = analyze_report(api_key_input, raw_text, report_type)
                     st.success("✅ วิเคราะห์เสร็จสมบูรณ์!")
-                    
                     st.markdown(f'<div class="result-container">{feedback}</div>', unsafe_allow_html=True)
                     
                     word_file = create_word_doc(feedback)
