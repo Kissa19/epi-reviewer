@@ -78,22 +78,25 @@ SYSTEM_INSTRUCTION = """
 
 ให้ประเมินตามลำดับต่อไปนี้:
 
-ส่วนที่ 1: จำแนกประเภทการสอบสวน
-- ระบุว่ารายงานเป็น Individual Case หรือ Outbreak หรือยังจำแนกไม่ได้
-- หากเป็น Individual Case ให้ตรวจความครบถ้วนของ 6 ขั้นตอน:
-  1) การเตรียมทีม
-  2) การรวบรวมข้อมูลผู้ป่วย
-  3) การค้นหาขอบเขตการกระจาย
-  4) การเก็บตัวอย่างส่งตรวจ
-  5) การควบคุมโรคขั้นต้น
-  6) การเขียนรายงาน
-- หากเป็น Outbreak ให้ตรวจความครบถ้วนของ 10 ขั้นตอน โดยเน้น:
-  case definition, active/passive case finding, descriptive epidemiology by person-time-place,
-  epidemic curve, spot map, hypothesis generation, analytic epidemiology เช่น OR/RR/95% CI,
-  laboratory/environmental investigation, control measures, communication and report
+ส่วนที่ 1: สรุปผลการประเมินภาพรวม
+- สรุปภาพรวมไม่เกิน 1 ย่อหน้า
+- ระบุว่ารายงานพร้อมส่งตีพิมพ์หรือยังไม่พร้อม
 
-ส่วนที่ 2: ประเมิน 14 องค์ประกอบของรายงาน
-ให้ประเมินแต่ละหัวข้อพร้อมคะแนน 0-3:
+ส่วนที่ 2: จำแนกประเภทการสอบสวน
+- ระบุว่าเป็น Individual Case, Outbreak หรือยังจำแนกไม่ได้
+- อธิบายเหตุผลแบบกระชับ
+
+ส่วนที่ 3: ประเมิน 14 องค์ประกอบของรายงาน
+ห้ามใช้ markdown table
+ให้เขียนแยกหัวข้อเรียงลำดับ 1-14 เท่านั้น
+แต่ละหัวข้อให้ใช้รูปแบบนี้:
+
+1. ชื่อเรื่อง
+คะแนน: 0-3
+สิ่งที่พบ: เขียนสั้น กระชับ
+ข้อเสนอแนะ: เขียนเป็นข้อเสนอแนะที่แก้ไขได้จริง ไม่เกิน 3 ข้อ
+
+เกณฑ์คะแนน:
 0 = ไม่มีหรือผิดหลัก
 1 = มีแต่ไม่ครบ/ไม่ชัด
 2 = ใช้ได้แต่ควรปรับ
@@ -115,27 +118,30 @@ SYSTEM_INSTRUCTION = """
 13. กิตติกรรมประกาศ
 14. เอกสารอ้างอิง
 
-ส่วนที่ 3: เกณฑ์เฉพาะทางระบาดวิทยาที่ต้องตรวจ
-- ความสอดคล้องของชื่อเรื่อง วัตถุประสงค์ วิธีการ ผล สรุป และข้อเสนอแนะ
-- นิยามผู้ป่วยครบตามบุคคล สถานที่ เวลา อาการ และผลตรวจหรือไม่
-- epidemic curve เหมาะสมกับโรคและระยะฟักตัวหรือไม่
-- spot map หรือข้อมูลสถานที่ช่วยอธิบายการกระจายของโรคหรือไม่
-- หากมีการวิเคราะห์ปัจจัยเสี่ยง ต้องตรวจ OR/RR, 95% CI, p-value และการตีความ
-- มาตรการควบคุมต้องระบุ 5W1H: ใคร ทำอะไร ที่ไหน เมื่อไร อย่างไร และผลเป็นอย่างไร
-- การสรุปว่าควบคุมโรคได้ ต้องสัมพันธ์กับระยะฟักตัวของโรคนั้น โดยทั่วไปควรไม่มีผู้ป่วยใหม่อย่างน้อย 2 เท่าของระยะฟักตัว เว้นแต่โรคนั้นมีเกณฑ์เฉพาะ
+ส่วนที่ 4: ข้อผิดพลาดร้ายแรงทางระบาดวิทยา
+ให้แยกเป็น:
+- Fatal Issues
+- Major Issues
+- Minor Issues
 
-รูปแบบคำตอบ:
-1. สรุปผลการประเมินภาพรวม
-2. ประเภทการสอบสวนและเหตุผล
-3. ตารางคะแนน 14 องค์ประกอบ: หัวข้อ | คะแนน | สิ่งที่พบ | ข้อเสนอแนะ
-4. ข้อผิดพลาดร้ายแรงทางระบาดวิทยา (Fatal/Major Issues)
-5. จุดแข็งของรายงาน
-6. ข้อเสนอแนะที่ควรแก้ไขก่อนส่งตีพิมพ์
-7. สรุประดับความพร้อม:
-   - พร้อมส่งตีพิมพ์
-   - ส่งได้หลังแก้ไขเล็กน้อย
-   - ต้องแก้ไขมากก่อนส่ง
-   - ยังไม่ควรส่งตีพิมพ์
+ส่วนที่ 5: จุดแข็งของรายงาน
+ระบุไม่เกิน 5 ข้อ
+
+ส่วนที่ 6: สิ่งที่ต้องแก้ก่อนส่งตีพิมพ์
+ระบุไม่เกิน 10 ข้อ โดยเรียงจากสำคัญมากไปน้อย
+
+ส่วนที่ 7: สรุประดับความพร้อม
+เลือกเพียง 1 ระดับ:
+- พร้อมส่งตีพิมพ์
+- ส่งได้หลังแก้ไขเล็กน้อย
+- ต้องแก้ไขมากก่อนส่ง
+- ยังไม่ควรส่งตีพิมพ์
+
+ข้อกำหนดสำคัญ:
+- ห้ามใช้ markdown table
+- ห้ามสร้างตารางแนวนอน
+- ห้ามตอบยาวเกินจำเป็น
+- ถ้าข้อมูลในรายงานไม่พบ ให้ระบุว่า "ไม่พบข้อมูลในรายงาน"
 """
 
 # ==========================================
@@ -149,37 +155,54 @@ def extract_text_from_pdf(pdf_file):
             text += page.extract_text() + "\n"
     return text
 
-def analyze_report_with_retry(api_key, text, report_type):
-    genai.configure(api_key=api_key)
-    model_name = "gemini-2.5-flash"
-    
-    # ระบบ Retry 3 รอบ
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                system_instruction=SYSTEM_INSTRUCTION + f"\n\n**บริบท:** รายงานนี้เป็นการ {report_type}"
-            )
-            response = model.generate_content(f"โปรดประเมินรายงานดังนี้:\n\n{text}")
-            return response.text
-        except Exception as e:
-            err_msg = str(e)
-            if "429" in err_msg or "quota" in err_msg.lower():
-                if attempt < max_retries - 1:
-                    wait_time = (attempt + 1) * 10 # รอเพิ่มขึ้นเรื่อยๆ 10, 20 วินาที
-                    st.warning(f"⚠️ โควตาการใช้งานชั่วคราวเต็ม (429) กำลังรอคิว {wait_time} วินาทีเพื่อลองใหม่...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    return "❌ ขออภัยครับ โควตา API ฟรีของคุณหมดลงชั่วคราว (จำกัด 5 ครั้งต่อนาที) กรุณารอสัก 1-2 นาทีแล้วลองใหม่อีกครั้งครับ"
-            return f"❌ พบข้อผิดพลาด: {e}"
+user_prompt = f"""
+ประเภทที่ผู้ใช้เลือก: {report_type}
+
+โปรดประเมินรายงานสอบสวนโรคต่อไปนี้ตามเกณฑ์ใน System Instruction
+
+ข้อกำหนดการตอบ:
+- ห้ามใช้ markdown table
+- ให้ตอบเป็นหัวข้อเรียงลำดับ
+- แต่ละหัวข้อให้กระชับ
+- ข้อเสนอแนะต้องนำไปแก้ไขรายงานได้จริง
+- หากข้อมูลไม่พบ ให้ระบุว่า "ไม่พบข้อมูลในรายงาน"
+
+เนื้อหารายงาน:
+{text}
+"""
+response = model.generate_content(user_prompt)
 
 def create_word_doc(feedback_text):
     doc = Document()
     doc.add_heading('ผลการประเมินรายงานสอบสวนโรค (EpiScholar)', 0)
+
     for line in feedback_text.split('\n'):
-        doc.add_paragraph(line)
+        line = line.strip()
+
+        if not line:
+            continue
+
+        # แปลงหัวข้อ markdown เป็น heading
+        if line.startswith("### "):
+            doc.add_heading(line.replace("### ", ""), level=2)
+        elif line.startswith("## "):
+            doc.add_heading(line.replace("## ", ""), level=1)
+        elif line.startswith("# "):
+            doc.add_heading(line.replace("# ", ""), level=1)
+
+        # bullet
+        elif line.startswith("- "):
+            doc.add_paragraph(line.replace("- ", ""), style="List Bullet")
+        elif line.startswith("* "):
+            doc.add_paragraph(line.replace("* ", ""), style="List Bullet")
+
+        # numbered list แบบง่าย
+        elif len(line) > 2 and line[0].isdigit() and line[1:3] in [". ", ") "]:
+            doc.add_paragraph(line, style="List Number")
+
+        else:
+            doc.add_paragraph(line)
+
     bio = io.BytesIO()
     doc.save(bio)
     return bio.getvalue()
