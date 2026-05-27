@@ -453,6 +453,7 @@ SYSTEM_INSTRUCTION = """
 - ให้ใช้ภาษาไทยทางวิชาการ แต่ต้องอ่านเข้าใจง่าย
 - ข้อเสนอแนะต้องระบุสิ่งที่ควรแก้ให้ชัดเจน
 - ถ้าข้อมูลในรายงานไม่พบ ให้ระบุว่า "ไม่พบข้อมูลในรายงาน"
+- หาก User Prompt กำหนดให้ประเมินเฉพาะบางส่วนหรือบางหัวข้อ ให้ตอบเฉพาะขอบเขตนั้นเท่านั้น ห้ามตอบนอกขอบเขต เพราะระบบจะเรียกวิเคราะห์หลายรอบแล้วรวมผลภายหลัง
 """
 
 # -----------------------------
@@ -552,7 +553,7 @@ def mask_pii(text: str, strict_staff_names: bool = False) -> str:
 
     return masked
 
-def build_user_prompt(report_text: str, report_type: str, pii_findings: list[str]) -> str:
+def build_common_context(report_type: str, pii_findings: list[str]) -> str:
     pii_note = "ไม่พบ PII จากการตรวจเบื้องต้นของระบบ"
     if pii_findings:
         pii_note = "ระบบตรวจพบและ mask PII เบื้องต้นก่อนส่งวิเคราะห์ ได้แก่: " + "; ".join(pii_findings)
@@ -561,16 +562,50 @@ def build_user_prompt(report_text: str, report_type: str, pii_findings: list[str
 ประเภทที่ผู้ใช้เลือก: {report_type}
 ผลการตรวจ PII เบื้องต้น: {pii_note}
 หมายเหตุ: การตรวจ PII ของระบบมุ่งตรวจข้อมูลผู้ป่วย/ผู้สัมผัสเป็นหลัก ไม่ถือว่าชื่อผู้รายงานหรือทีมสอบสวนเป็น Fatal Error โดยอัตโนมัติ
+""".strip()
 
-โปรดประเมินรายงานสอบสวนโรคต่อไปนี้ตามเกณฑ์ใน System Instruction
+
+def build_part1_prompt(report_text: str, report_type: str, pii_findings: list[str]) -> str:
+    context = build_common_context(report_type, pii_findings)
+    return f"""
+{context}
+
+โปรดประเมินรายงานสอบสวนโรคต่อไปนี้ เฉพาะส่วนที่กำหนดในรอบที่ 1 เท่านั้น
 หากประเภทที่ผู้ใช้เลือกไม่สอดคล้องกับเนื้อหารายงาน ให้แจ้งเตือนและอธิบายเหตุผล
 
-ข้อกำหนดการตอบ:
+ขอบเขตคำตอบรอบที่ 1:
+ส่วนที่ 1: สรุปผลการประเมินภาพรวม
+- สรุปภาพรวมไม่เกิน 1 ย่อหน้า
+- ระบุว่ารายงานพร้อมส่งตีพิมพ์หรือยังไม่พร้อม
+
+ส่วนที่ 2: จำแนกประเภทการสอบสวน
+- ระบุว่าเป็น Individual Case, Outbreak หรือยังจำแนกไม่ได้
+- อธิบายเหตุผลแบบกระชับ
+- หากเป็น Individual Case ให้ตรวจความครบถ้วนของ 6 ขั้นตอน
+- หากเป็น Outbreak ให้ตรวจความครบถ้วนของ 10 ขั้นตอน
+
+ส่วนที่ 3: ประเมิน 14 องค์ประกอบของรายงาน เฉพาะหัวข้อ 1-7
+ห้ามใช้ markdown table ให้เขียนแยกหัวข้อเรียงลำดับเท่านั้น
+รูปแบบแต่ละหัวข้อ:
+1. ชื่อหัวข้อ
+คะแนน: 0-3
+สิ่งที่พบ: เขียนสั้น กระชับ
+ข้อเสนอแนะ:
+- ข้อเสนอแนะที่แก้ไขได้จริง
+
+หัวข้อที่ต้องประเมินในรอบที่ 1:
+1. ชื่อเรื่อง
+2. ผู้รายงานและทีมสอบสวน
+3. บทคัดย่อ
+4. ความเป็นมา/บทนำ
+5. วัตถุประสงค์
+6. วิธีการสอบสวน
+7. ผลการสอบสวน
+
+ข้อกำหนด:
+- ห้ามตอบหัวข้อ 8-14 ในรอบนี้
+- ห้ามตอบส่วนที่ 4-7 ในรอบนี้
 - ห้ามใช้ markdown table
-- ห้ามใช้ตารางแนวนอน
-- ให้ตอบเป็นหัวข้อเรียงลำดับ
-- แต่ละหัวข้อให้กระชับแต่ครบถ้วน
-- ข้อเสนอแนะต้องนำไปแก้ไขรายงานได้จริง
 - หากข้อมูลไม่พบ ให้ระบุว่า "ไม่พบข้อมูลในรายงาน"
 
 เนื้อหารายงาน:
@@ -578,49 +613,144 @@ def build_user_prompt(report_text: str, report_type: str, pii_findings: list[str
 """
 
 
+def build_part2_prompt(report_text: str, report_type: str, pii_findings: list[str]) -> str:
+    context = build_common_context(report_type, pii_findings)
+    return f"""
+{context}
+
+โปรดประเมินรายงานสอบสวนโรคต่อไปนี้ เฉพาะส่วนที่กำหนดในรอบที่ 2 เท่านั้น
+
+ขอบเขตคำตอบรอบที่ 2:
+ส่วนที่ 3 ต่อ: ประเมิน 14 องค์ประกอบของรายงาน เฉพาะหัวข้อ 8-14
+ห้ามใช้ markdown table ให้เขียนแยกหัวข้อเรียงลำดับเท่านั้น
+รูปแบบแต่ละหัวข้อ:
+8. ชื่อหัวข้อ
+คะแนน: 0-3
+สิ่งที่พบ: เขียนสั้น กระชับ
+ข้อเสนอแนะ:
+- ข้อเสนอแนะที่แก้ไขได้จริง
+
+หัวข้อที่ต้องประเมินในรอบที่ 2:
+8. มาตรการควบคุมและป้องกันโรค
+9. วิจารณ์ผล
+10. ปัญหาและข้อจำกัด
+11. ข้อเสนอแนะ
+12. สรุปผล
+13. กิตติกรรมประกาศ
+14. เอกสารอ้างอิง
+
+ส่วนที่ 4: ข้อผิดพลาดร้ายแรงทางระบาดวิทยา
+ให้แยกเป็น:
+- Fatal Issues
+- Major Issues
+- Minor Issues
+
+ส่วนที่ 5: จุดแข็งของรายงาน
+ระบุไม่เกิน 5 ข้อ
+
+ส่วนที่ 6: สิ่งที่ต้องแก้ก่อนส่งตีพิมพ์
+ระบุไม่เกิน 10 ข้อ โดยเรียงจากสำคัญมากไปน้อย
+
+ส่วนที่ 7: สรุประดับความพร้อม
+เลือกเพียง 1 ระดับ:
+- พร้อมส่งตีพิมพ์
+- ส่งได้หลังแก้ไขเล็กน้อย
+- ต้องแก้ไขมากก่อนส่ง
+- ยังไม่ควรส่งตีพิมพ์
+
+ข้อกำหนด:
+- ห้ามตอบส่วนที่ 1-2 ซ้ำ
+- ห้ามตอบหัวข้อ 1-7 ซ้ำ
+- ห้ามใช้ markdown table
+- หากข้อมูลไม่พบ ให้ระบุว่า "ไม่พบข้อมูลในรายงาน"
+
+เนื้อหารายงาน:
+{report_text}
+"""
+
+
+def ensure_required_sections(feedback: str) -> str:
+    """Add a clear warning if the generated feedback still appears incomplete."""
+    required_markers = [
+        "ส่วนที่ 1", "ส่วนที่ 2", "1.", "7.", "8.", "14.",
+        "ส่วนที่ 4", "ส่วนที่ 5", "ส่วนที่ 6", "ส่วนที่ 7",
+    ]
+    missing = [m for m in required_markers if m not in feedback]
+    if missing:
+        warning = (
+            "หมายเหตุระบบ: ผลลัพธ์อาจยังไม่ครบถ้วน ระบบตรวจไม่พบ marker ต่อไปนี้: "
+            + ", ".join(missing)
+            + "\nกรุณาลองรันใหม่ หรือเลือก gemini-2.5-pro หากรายงานยาวมาก\n\n"
+        )
+        return warning + feedback
+    return feedback
+
+def call_gemini_once(user_prompt: str, model_name: str) -> str:
+    """Single Gemini call. The caller handles retry/assembly."""
+    model = genai.GenerativeModel(
+        model_name=model_name,
+        system_instruction=SYSTEM_INSTRUCTION,
+    )
+    response = model.generate_content(
+        user_prompt,
+        generation_config={
+            "temperature": 0.15,
+            "top_p": 0.8,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+        },
+    )
+    feedback = getattr(response, "text", "") or ""
+    return normalize_text_for_display(feedback)
+
+
 def analyze_report_with_retry(api_key: str, text: str, report_type: str, model_name: str, pii_findings: list[str]) -> str:
-    """Call Gemini API with retry for quota/rate-limit errors."""
+    """Call Gemini API in two rounds to reduce output truncation.
+
+    Long investigation reports often exceed a single response budget when we ask for
+    overview + 14 components + final recommendations in one call. This function
+    intentionally splits the review into two calls and concatenates the results.
+    """
     genai.configure(api_key=api_key)
     max_retries = 3
 
-    user_prompt = build_user_prompt(text, report_type, pii_findings)
+    prompts = [
+        ("รอบที่ 1/2: ภาพรวม ประเภทการสอบสวน และหัวข้อ 1-7", build_part1_prompt(text, report_type, pii_findings)),
+        ("รอบที่ 2/2: หัวข้อ 8-14 ข้อผิดพลาด จุดแข็ง และสรุปความพร้อม", build_part2_prompt(text, report_type, pii_findings)),
+    ]
 
-    for attempt in range(max_retries):
-        try:
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                system_instruction=SYSTEM_INSTRUCTION,
-            )
-            response = model.generate_content(
-                user_prompt,
-                generation_config={
-                    "temperature": 0.2,
-                    "top_p": 0.8,
-                    "top_k": 40,
-                    "max_output_tokens": 8192,
-                },
-            )
-
-            feedback = getattr(response, "text", "") or ""
-            feedback = normalize_text_for_display(feedback)
-            if not feedback.strip():
-                return "❌ โมเดลไม่ส่งผลลัพธ์กลับมา กรุณาลองใหม่ หรือลดความยาวรายงาน"
-            return feedback
-
-        except Exception as exc:
-            err_msg = str(exc)
-            if "429" in err_msg or "quota" in err_msg.lower() or "rate" in err_msg.lower():
-                if attempt < max_retries - 1:
-                    wait_time = (attempt + 1) * 10
-                    st.warning(f"⚠️ โควตาการใช้งานชั่วคราวเต็ม กำลังรอ {wait_time} วินาทีก่อนลองใหม่...")
-                    time.sleep(wait_time)
+    outputs = []
+    for label, prompt in prompts:
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                with st.spinner(f"⏳ EpiScholar กำลังวิเคราะห์ {label}..."):
+                    part = call_gemini_once(prompt, model_name)
+                if not part.strip():
+                    last_error = "โมเดลไม่ส่งผลลัพธ์กลับมา"
                     continue
-                return "❌ โควตา API เต็มชั่วคราว กรุณารอสักครู่แล้วลองใหม่อีกครั้ง"
+                outputs.append(part)
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                err_msg = str(exc)
+                if "429" in err_msg or "quota" in err_msg.lower() or "rate" in err_msg.lower():
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 10
+                        st.warning(f"⚠️ โควตาการใช้งานชั่วคราวเต็ม กำลังรอ {wait_time} วินาทีก่อนลองใหม่...")
+                        time.sleep(wait_time)
+                        continue
+                    return "❌ โควตา API เต็มชั่วคราว กรุณารอสักครู่แล้วลองใหม่อีกครั้ง"
+                if attempt < max_retries - 1:
+                    time.sleep(3)
+                    continue
+        else:
+            return f"❌ วิเคราะห์ไม่สำเร็จใน{label}: {last_error}"
 
-            return f"❌ พบข้อผิดพลาดจากการเรียก API: {exc}"
-
-    return "❌ วิเคราะห์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
-
+    combined = "\n\n".join(outputs)
+    combined = normalize_text_for_display(combined)
+    combined = ensure_required_sections(combined)
+    return combined if combined.strip() else "❌ โมเดลไม่ส่งผลลัพธ์กลับมา กรุณาลองใหม่ หรือลดความยาวรายงาน"
 
 def add_markdown_like_line_to_doc(doc: Document, line: str) -> None:
     """Add a markdown-like line to docx with simple heading/list handling."""
