@@ -15,6 +15,13 @@ import google.generativeai as genai
 # Single-file Streamlit App
 # =========================================================
 
+
+# -----------------------------
+# 0) Branding assets
+# -----------------------------
+DDC8_LOGO_FILE_ID = "1OWRqh2qNYdeWfJzjMq8u5LN8ZvJFAkjn"
+DDC8_LOGO_URL = f"https://drive.google.com/thumbnail?id={DDC8_LOGO_FILE_ID}&sz=w600"
+
 # -----------------------------
 # 1) Page config and style
 # -----------------------------
@@ -29,74 +36,297 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
 
+    :root {
+        --ddc-pink: #D81B60;
+        --ddc-deep: #880E4F;
+        --ddc-soft: #FCE4EC;
+        --ddc-bg: #FFF7FB;
+        --text-main: #172033;
+        --text-muted: #667085;
+        --card-border: rgba(216, 27, 96, 0.12);
+    }
+
     html, body, [class*="css"], .stMarkdown, .stText, .stButton, .stTextInput,
-    .stSelectbox, .stRadio, .stHeader, .stFileUploader, .stDownloadButton {
+    .stSelectbox, .stRadio, .stHeader, .stFileUploader, .stDownloadButton, label, p, span {
         font-family: 'Kanit', sans-serif !important;
     }
 
-    .stApp { background-color: #FFFFFF; }
+    .stApp {
+        background:
+            radial-gradient(circle at top left, rgba(216, 27, 96, 0.10), transparent 32rem),
+            linear-gradient(180deg, #FFFFFF 0%, var(--ddc-bg) 100%);
+        color: var(--text-main);
+    }
+
+    .block-container {
+        padding-top: 1.4rem;
+        padding-bottom: 3rem;
+        max-width: 1280px;
+    }
+
+    header[data-testid="stHeader"] {
+        background: rgba(255, 255, 255, 0);
+    }
 
     section[data-testid="stSidebar"] {
-        background-color: #880E4F !important;
+        background: linear-gradient(180deg, #7B0B45 0%, #AD1457 58%, #D81B60 100%) !important;
         color: white !important;
+        border-right: 1px solid rgba(255,255,255,0.18);
     }
 
     section[data-testid="stSidebar"] .stMarkdown,
     section[data-testid="stSidebar"] label,
     section[data-testid="stSidebar"] p,
-    section[data-testid="stSidebar"] span {
+    section[data-testid="stSidebar"] span,
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3 {
         color: white !important;
+    }
+
+    .brand-card {
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 22px;
+        padding: 16px 14px;
+        text-align: center;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12);
+        margin-bottom: 16px;
+    }
+
+    .brand-card img {
+        max-width: 128px;
+        border-radius: 18px;
+        background: white;
+        padding: 8px;
+        margin-bottom: 10px;
+    }
+
+    .brand-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        line-height: 1.35;
+    }
+
+    .brand-subtitle {
+        font-size: 0.84rem;
+        opacity: 0.92;
+        line-height: 1.45;
+        margin-top: 4px;
+    }
+
+    .hero-box {
+        position: relative;
+        overflow: hidden;
+        background:
+            linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(252, 228, 236, 0.95) 100%);
+        border: 1px solid var(--card-border);
+        padding: 26px 28px;
+        border-radius: 28px;
+        margin-bottom: 18px;
+        box-shadow: 0 18px 55px rgba(136, 14, 79, 0.12);
+    }
+
+    .hero-box::after {
+        content: "";
+        position: absolute;
+        right: -70px;
+        top: -85px;
+        width: 240px;
+        height: 240px;
+        border-radius: 50%;
+        background: rgba(216, 27, 96, 0.12);
+    }
+
+    .hero-grid {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .hero-logo {
+        flex: 0 0 auto;
+        width: 92px;
+        height: 92px;
+        border-radius: 24px;
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 12px 35px rgba(136, 14, 79, 0.16);
+        border: 1px solid rgba(216, 27, 96, 0.10);
+    }
+
+    .hero-logo img {
+        max-width: 78px;
+        max-height: 78px;
+        object-fit: contain;
+    }
+
+    .hero-title {
+        margin: 0;
+        color: var(--ddc-deep);
+        font-size: clamp(1.65rem, 3vw, 2.55rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+
+    .hero-subtitle {
+        color: #4B5563;
+        font-size: 1.05rem;
+        margin-top: 6px;
+        line-height: 1.55;
+    }
+
+    .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    .pill {
+        background: rgba(216, 27, 96, 0.10);
+        color: var(--ddc-deep);
+        border: 1px solid rgba(216, 27, 96, 0.14);
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: 0.88rem;
+        font-weight: 600;
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"],
+    div[data-testid="stExpander"] {
+        border-radius: 20px !important;
+        border-color: var(--card-border) !important;
+        box-shadow: 0 10px 30px rgba(17, 24, 39, 0.04);
+        background: rgba(255, 255, 255, 0.82);
+    }
+
+    .input-card, .result-card {
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid var(--card-border);
+        border-radius: 24px;
+        padding: 20px 22px;
+        box-shadow: 0 16px 45px rgba(17, 24, 39, 0.06);
+        min-height: 100%;
+    }
+
+    .section-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--ddc-deep);
+        margin-bottom: 8px;
+    }
+
+    .metric-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin: 14px 0 18px 0;
+    }
+
+    .mini-metric {
+        background: #FFFFFF;
+        border: 1px solid rgba(216, 27, 96, 0.10);
+        border-radius: 18px;
+        padding: 12px 12px;
+        box-shadow: 0 10px 24px rgba(136, 14, 79, 0.06);
+    }
+
+    .mini-metric .num {
+        color: var(--ddc-pink);
+        font-weight: 700;
+        font-size: 1.24rem;
+        line-height: 1;
+    }
+
+    .mini-metric .label {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        margin-top: 4px;
     }
 
     div.stButton > button:first-child,
     div.stDownloadButton > button:first-child {
-        background-color: #D81B60;
+        background: linear-gradient(135deg, #D81B60 0%, #AD1457 100%);
         color: white;
-        border-radius: 10px;
-        font-weight: 600;
+        border-radius: 14px;
+        font-weight: 700;
         border: none;
-        padding: 0.6rem 1rem;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 12px 26px rgba(216, 27, 96, 0.22);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
     }
 
     div.stButton > button:first-child:hover,
     div.stDownloadButton > button:first-child:hover {
-        background-color: #AD1457;
+        background: linear-gradient(135deg, #AD1457 0%, #880E4F 100%);
         color: white;
         border: none;
+        transform: translateY(-1px);
+        box-shadow: 0 16px 34px rgba(216, 27, 96, 0.28);
     }
 
-    .hero-box {
-        background: linear-gradient(135deg, #FCE4EC 0%, #FFFFFF 70%);
-        border-left: 7px solid #D81B60;
-        padding: 22px 26px;
-        border-radius: 18px;
-        margin-bottom: 16px;
+    .stTextInput input, .stSelectbox div[data-baseweb="select"], textarea {
+        border-radius: 14px !important;
+    }
+
+    [data-testid="stFileUploader"] section {
+        border-radius: 18px !important;
+        border: 1px dashed rgba(216, 27, 96, 0.45) !important;
+        background: rgba(252, 228, 236, 0.32);
     }
 
     .result-container {
-        background-color: #FDF2F6;
+        background-color: #FFFFFF;
         padding: 24px;
-        border-radius: 16px;
-        border-left: 6px solid #D81B60;
+        border-radius: 20px;
+        border-left: 6px solid var(--ddc-pink);
         line-height: 1.75;
         white-space: normal;
+        box-shadow: 0 12px 30px rgba(17, 24, 39, 0.05);
     }
 
     .sidebar-footer {
         color: #FFFFFF !important;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 400;
         margin-top: 20px;
-        padding: 12px;
+        padding: 13px;
         background-color: rgba(255, 255, 255, 0.15);
-        border-radius: 10px;
-        line-height: 1.6;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        line-height: 1.65;
     }
 
     .small-note {
         color: #6B7280;
         font-size: 0.92rem;
-        line-height: 1.6;
+        line-height: 1.65;
+        background: rgba(255,255,255,0.72);
+        border: 1px solid rgba(216, 27, 96, 0.10);
+        border-radius: 16px;
+        padding: 12px 14px;
+        margin-top: 10px;
+    }
+
+    .success-card {
+        background: #FFFFFF;
+        border: 1px solid rgba(16, 185, 129, 0.22);
+        border-left: 6px solid #10B981;
+        border-radius: 18px;
+        padding: 14px 16px;
+        color: #065F46;
+        margin: 8px 0 14px 0;
+    }
+
+    @media (max-width: 760px) {
+        .hero-grid { flex-direction: column; align-items: flex-start; }
+        .metric-strip { grid-template-columns: 1fr; }
     }
     </style>
     """,
@@ -112,9 +342,10 @@ SYSTEM_INSTRUCTION = """
 ให้ข้อเสนอแนะเชิงวิชาการที่ถูกต้อง ชัดเจน ตรงประเด็น และนำไปแก้ไขต้นฉบับได้จริง
 
 กฎความปลอดภัยข้อมูล:
-1. หากพบข้อมูลส่วนบุคคล เช่น ชื่อ-สกุลผู้ป่วย, HN, เลขบัตรประชาชน 13 หลัก, เบอร์โทร, ที่อยู่ละเอียด หรือข้อมูลระบุตัวบุคคล ให้จัดเป็น "Fatal Error"
-2. ห้ามคัดลอกข้อมูลส่วนบุคคลซ้ำในคำตอบ ให้ระบุเพียงประเภทข้อมูลที่พบ
-3. หากข้อมูลไม่เพียงพอ ห้ามเดา ให้ระบุว่า "ไม่พบข้อมูลในรายงาน" หรือ "ยังประเมินไม่ได้จากข้อมูลที่มี"
+1. ให้ตรวจ PII เฉพาะข้อมูลที่ระบุตัวผู้ป่วย ญาติ ผู้สัมผัส หรือประชาชน เช่น ชื่อ-สกุลผู้ป่วย, HN, AN, เลขบัตรประชาชน 13 หลัก, เบอร์โทร, ที่อยู่ละเอียดระดับบ้านเลขที่ หรือข้อมูลระบุตัวบุคคลของผู้ป่วย
+2. ชื่อผู้รายงาน ผู้แต่งรายงาน ทีมสอบสวน เจ้าหน้าที่ หน่วยงาน หรือผู้บริหารที่ระบุในฐานะผู้ปฏิบัติงาน/ผู้ให้การสนับสนุน ไม่ถือเป็น Fatal Error โดยอัตโนมัติ ให้ประเมินเป็นข้อมูลผู้แต่งหรือทีมงาน เว้นแต่ผู้ใช้ระบุว่าต้องการรายงานแบบนิรนาม
+3. ห้ามคัดลอกข้อมูลส่วนบุคคลของผู้ป่วยซ้ำในคำตอบ ให้ระบุเพียงประเภทข้อมูลที่พบ
+4. หากข้อมูลไม่เพียงพอ ห้ามเดา ให้ระบุว่า "ไม่พบข้อมูลในรายงาน" หรือ "ยังประเมินไม่ได้จากข้อมูลที่มี"
 
 ให้ประเมินตามลำดับต่อไปนี้:
 
@@ -236,8 +467,29 @@ def normalize_text_for_display(text: str) -> str:
     return cleaned.strip()
 
 
-def scan_pii(text: str) -> list[str]:
-    """Basic local pre-scan for common PII patterns before sending to API."""
+PATIENT_CODE_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9])(?:HN|H\.N\.|AN|A\.N\.)(?:\s*[:：#\-]\s*|\s+)[A-Za-z0-9][A-Za-z0-9/\-]{3,}(?![A-Za-z0-9])",
+    flags=re.IGNORECASE,
+)
+
+PATIENT_NAME_PATTERN = re.compile(
+    r"(?:ชื่อผู้ป่วย|ผู้ป่วยชื่อ|ผู้ป่วย\s*[:：]?\s*)(?:นาย|นาง|นางสาว|ด\.ช\.|ด\.ญ\.)\s*[ก-๙]{2,}\s+[ก-๙]{2,}"
+)
+
+THAI_STAFF_NAME_PATTERN = re.compile(
+    r"(?:นาย|นาง|นางสาว|ด\.ช\.|ด\.ญ\.)\s*[ก-๙]{2,}\s+[ก-๙]{2,}"
+)
+
+
+def scan_pii(text: str, strict_staff_names: bool = False) -> list[str]:
+    """Local pre-scan for likely patient-level PII before sending to API.
+
+    Design notes:
+    - HN/AN must be followed by a separator or whitespace and then a code.
+      This prevents false positives such as "NS1 Antigen" being read as AN.
+    - Thai staff/author names are not treated as patient PII by default.
+      They can be flagged only when strict_staff_names=True.
+    """
     findings = []
 
     if re.search(r"\b\d{13}\b", text):
@@ -249,35 +501,31 @@ def scan_pii(text: str) -> list[str]:
     if re.search(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text):
         findings.append("พบอีเมล")
 
-    if re.search(r"\b(?:HN|H\.N\.|AN|A\.N\.)\s*[:：]?\s*[A-Za-z0-9/-]{4,}\b", text, flags=re.IGNORECASE):
+    if PATIENT_CODE_PATTERN.search(text):
         findings.append("พบรหัสผู้ป่วย เช่น HN/AN")
 
-    # Thai full-name clues. This is intentionally conservative and may not catch all names.
-    if re.search(r"(?:นาย|นาง|นางสาว|ด\.ช\.|ด\.ญ\.)\s*[ก-๙]{2,}\s+[ก-๙]{2,}", text):
-        findings.append("พบรูปแบบชื่อ-สกุลภาษาไทยที่อาจเป็นข้อมูลส่วนบุคคล")
+    if PATIENT_NAME_PATTERN.search(text):
+        findings.append("พบชื่อ-สกุลผู้ป่วยที่อาจเป็นข้อมูลส่วนบุคคล")
+
+    if strict_staff_names and THAI_STAFF_NAME_PATTERN.search(text):
+        findings.append("พบชื่อ-สกุลภาษาไทยของบุคลากร/ทีมงาน ควรตรวจว่าอนุญาตให้เผยแพร่หรือไม่")
 
     return findings
 
 
-def mask_pii(text: str) -> str:
-    """Mask common PII patterns locally before API submission."""
+def mask_pii(text: str, strict_staff_names: bool = False) -> str:
+    """Mask likely patient-level PII locally before API submission."""
     masked = text
     masked = re.sub(r"\b\d{13}\b", "[MASKED_ID_13_DIGITS]", masked)
     masked = re.sub(r"\b0\d{8,9}\b", "[MASKED_PHONE]", masked)
     masked = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "[MASKED_EMAIL]", masked)
-    masked = re.sub(
-        r"\b(?:HN|H\.N\.|AN|A\.N\.)\s*[:：]?\s*[A-Za-z0-9/-]{4,}\b",
-        "[MASKED_PATIENT_CODE]",
-        masked,
-        flags=re.IGNORECASE,
-    )
-    masked = re.sub(
-        r"(?:นาย|นาง|นางสาว|ด\.ช\.|ด\.ญ\.)\s*[ก-๙]{2,}\s+[ก-๙]{2,}",
-        "[MASKED_THAI_NAME]",
-        masked,
-    )
-    return masked
+    masked = PATIENT_CODE_PATTERN.sub("[MASKED_PATIENT_CODE]", masked)
+    masked = PATIENT_NAME_PATTERN.sub("[MASKED_PATIENT_NAME]", masked)
 
+    if strict_staff_names:
+        masked = THAI_STAFF_NAME_PATTERN.sub("[MASKED_THAI_NAME]", masked)
+
+    return masked
 
 def build_user_prompt(report_text: str, report_type: str, pii_findings: list[str]) -> str:
     pii_note = "ไม่พบ PII จากการตรวจเบื้องต้นของระบบ"
@@ -287,6 +535,7 @@ def build_user_prompt(report_text: str, report_type: str, pii_findings: list[str
     return f"""
 ประเภทที่ผู้ใช้เลือก: {report_type}
 ผลการตรวจ PII เบื้องต้น: {pii_note}
+หมายเหตุ: การตรวจ PII ของระบบมุ่งตรวจข้อมูลผู้ป่วย/ผู้สัมผัสเป็นหลัก ไม่ถือว่าชื่อผู้รายงานหรือทีมสอบสวนเป็น Fatal Error โดยอัตโนมัติ
 
 โปรดประเมินรายงานสอบสวนโรคต่อไปนี้ตามเกณฑ์ใน System Instruction
 หากประเภทที่ผู้ใช้เลือกไม่สอดคล้องกับเนื้อหารายงาน ให้แจ้งเตือนและอธิบายเหตุผล
@@ -400,7 +649,7 @@ def create_word_doc(feedback_text: str, report_type: str, pii_findings: list[str
 
     if pii_findings:
         doc.add_heading("หมายเหตุด้านความปลอดภัยข้อมูล", level=1)
-        doc.add_paragraph("ระบบตรวจพบและ mask ข้อมูลที่อาจเป็น PII ก่อนส่งวิเคราะห์ ดังนี้")
+        doc.add_paragraph("ระบบตรวจพบและ mask ข้อมูลที่อาจเป็น PII ตามโหมดที่เลือก ก่อนส่งวิเคราะห์ ดังนี้")
         for item in pii_findings:
             doc.add_paragraph(item, style="List Bullet")
 
@@ -428,18 +677,53 @@ def create_word_doc(feedback_text: str, report_type: str, pii_findings: list[str
 # 4) UI
 # -----------------------------
 st.markdown(
-    """
+    f"""
     <div class="hero-box">
-        <h1 style="margin-bottom: 0.2rem; color: #880E4F;">📋 EpiScholar: ระบบประเมินรายงานสอบสวนโรค</h1>
-        <div style="font-size: 1.05rem; color: #4B5563;">
-            กลุ่มระบาดวิทยาและตอบโต้ภาวะฉุกเฉินทางสาธารณสุข สคร.8 อุดรธานี กรมควบคุมโรค
+        <div class="hero-grid">
+            <div class="hero-logo">
+                <img src="{DDC8_LOGO_URL}" alt="DDC8 Logo">
+            </div>
+            <div>
+                <h1 class="hero-title">EpiScholar</h1>
+                <div class="hero-subtitle">
+                    ระบบประเมินรายงานสอบสวนโรคด้วย AI สำหรับงานระบาดวิทยาภาคสนาม<br>
+                    กลุ่มระบาดวิทยาและตอบโต้ภาวะฉุกเฉินทางสาธารณสุข สคร.8 อุดรธานี
+                </div>
+                <div class="pill-row">
+                    <span class="pill">14 องค์ประกอบรายงาน</span>
+                    <span class="pill">Outbreak / Single Case</span>
+                    <span class="pill">PII Pre-scan</span>
+                    <span class="pill">Export Word</span>
+                </div>
+            </div>
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    """
+    <div class="metric-strip">
+        <div class="mini-metric"><div class="num">14</div><div class="label">หัวข้อประเมินหลัก</div></div>
+        <div class="mini-metric"><div class="num">0–3</div><div class="label">คะแนนรายองค์ประกอบ</div></div>
+        <div class="mini-metric"><div class="num">DOCX</div><div class="label">ดาวน์โหลดผลประเมิน</div></div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 with st.sidebar:
+    st.markdown(
+        f"""
+        <div class="brand-card">
+            <img src="{DDC8_LOGO_URL}" alt="DDC8 Logo">
+            <div class="brand-title">EpiScholar</div>
+            <div class="brand-subtitle">AI Reviewer for Investigation Report<br>สคร.8 อุดรธานี</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.header("⚙️ ตั้งค่าระบบ")
     api_key_input = st.text_input("🔑 Gemini API Key", type="password")
     model_name = st.selectbox(
@@ -449,13 +733,18 @@ with st.sidebar:
         help="แนะนำ gemini-2.5-flash สำหรับความเร็วและต้นทุนต่ำกว่า",
     )
     mask_before_send = st.checkbox(
-        "Mask PII ก่อนส่งเข้า AI",
+        "Mask PII ผู้ป่วยก่อนส่งเข้า AI",
         value=True,
-        help="แนะนำให้เปิดไว้เสมอ เพื่อความปลอดภัยของข้อมูล",
+        help="แนะนำให้เปิดไว้เสมอ โดยจะเน้น mask ข้อมูลผู้ป่วย/ผู้สัมผัส เช่น HN/AN เลขบัตร เบอร์โทร และชื่อผู้ป่วย",
+    )
+    strict_staff_names = st.checkbox(
+        "Mask ชื่อผู้รายงาน/ทีมสอบสวนด้วย",
+        value=False,
+        help="เปิดเฉพาะกรณีต้องการทำเอกสารแบบนิรนามทั้งหมด ปกติชื่อผู้รายงานและทีมสอบสวนไม่ถือเป็นข้อมูลผู้ป่วย",
     )
     st.markdown("---")
     st.markdown(
-        '<div class="sidebar-footer">พัฒนาเพื่อสนับสนุนการประเมินรายงานสอบสวนโรคฉบับสมบูรณ์ โดยเน้น 14 องค์ประกอบ ระบาดวิทยาภาคสนาม และความพร้อมต่อการตีพิมพ์</div>',
+        '<div class="sidebar-footer">พัฒนาเพื่อสนับสนุนการประเมินรายงานสอบสวนโรคฉบับสมบูรณ์ โดยเน้นความถูกต้องทางระบาดวิทยา ความปลอดภัยข้อมูล และความพร้อมต่อการตีพิมพ์</div>',
         unsafe_allow_html=True,
     )
 
@@ -468,14 +757,15 @@ with st.expander("📖 วิธีการใช้งาน", expanded=False)
         4. กดเริ่มตรวจสอบรายงาน
         5. ดาวน์โหลดผลประเมินเป็นไฟล์ Word
 
-        หมายเหตุ: ระบบมีการตรวจและ mask PII เบื้องต้น แต่ควรปกปิดข้อมูลส่วนบุคคลในรายงานก่อนอัปโหลดทุกครั้ง
+        หมายเหตุ: ระบบมีการตรวจและ mask PII เบื้องต้น โดยเน้นข้อมูลผู้ป่วย/ผู้สัมผัส แต่ควรตรวจทานรายงานก่อนอัปโหลดทุกครั้ง
         """
     )
 
-col1, col2 = st.columns([1, 2])
+col1, col2 = st.columns([0.95, 1.55], gap="large")
 
 with col1:
-    st.subheader("📥 ข้อมูลนำเข้า")
+    st.markdown('<div class="input-card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📥 ข้อมูลนำเข้า</div>', unsafe_allow_html=True)
     report_type = st.radio(
         "ประเภทการสอบสวน:",
         [
@@ -487,6 +777,9 @@ with col1:
     )
     uploaded_file = st.file_uploader("อัปโหลดไฟล์รายงาน (PDF)", type=["pdf"])
 
+    if uploaded_file:
+        st.caption(f"ไฟล์ที่เลือก: {uploaded_file.name}")
+
     st.markdown(
         """
         <div class="small-note">
@@ -495,9 +788,11 @@ with col1:
         """,
         unsafe_allow_html=True,
     )
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
-    st.subheader("📊 ผลการประเมิน")
+    st.markdown('<div class="result-card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📊 ผลการประเมิน</div>', unsafe_allow_html=True)
 
     if "feedback" not in st.session_state:
         st.session_state.feedback = None
@@ -524,8 +819,8 @@ with col2:
                 )
                 st.stop()
 
-            pii_findings = scan_pii(raw_text)
-            text_for_analysis = mask_pii(raw_text) if mask_before_send else raw_text
+            pii_findings = scan_pii(raw_text, strict_staff_names=strict_staff_names)
+            text_for_analysis = mask_pii(raw_text, strict_staff_names=strict_staff_names) if mask_before_send else raw_text
 
             if pii_findings:
                 st.warning("⚠️ ตรวจพบข้อมูลที่อาจเป็น PII ระบบได้ mask เบื้องต้นก่อนวิเคราะห์แล้ว" if mask_before_send else "⚠️ ตรวจพบข้อมูลที่อาจเป็น PII แต่ขณะนี้ไม่ได้เปิดการ mask")
@@ -548,11 +843,10 @@ with col2:
                 st.session_state.feedback = feedback
                 st.session_state.pii_findings = pii_findings
                 st.session_state.word_file = create_word_doc(feedback, report_type, pii_findings)
-                st.success("✅ วิเคราะห์เสร็จสมบูรณ์")
+                st.markdown('<div class="success-card">✅ วิเคราะห์เสร็จสมบูรณ์ พร้อมดาวน์โหลดเป็น Word</div>', unsafe_allow_html=True)
 
     if st.session_state.feedback:
         st.markdown("### ผลลัพธ์")
-        # Avoid unsafe HTML for model output.
         st.markdown(st.session_state.feedback)
 
         st.download_button(
@@ -562,3 +856,7 @@ with col2:
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
         )
+    else:
+        st.info("อัปโหลดรายงาน PDF แล้วกดเริ่มตรวจสอบ เพื่อให้ระบบประเมินรายงานตามหลักระบาดวิทยา")
+
+    st.markdown('</div>', unsafe_allow_html=True)
