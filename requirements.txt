@@ -1,4 +1,6 @@
 streamlit
+google-generativeai
 PyPDF2
-google-generativeai>=0.7.2
 python-docx
+gspread
+google-auth
