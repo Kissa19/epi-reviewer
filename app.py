@@ -1,4 +1,5 @@
 import io
+import json
 import re
 import time
 from datetime import datetime
@@ -322,6 +323,50 @@ st.markdown(
         padding: 14px 16px;
         color: #065F46;
         margin: 8px 0 14px 0;
+    }
+
+
+    .manual-card {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--card-border);
+        border-radius: 22px;
+        padding: 18px 22px;
+        margin: 18px 0 20px 0;
+        box-shadow: 0 14px 38px rgba(17, 24, 39, 0.05);
+    }
+
+    .manual-card h3, .login-card h3 {
+        margin: 0 0 10px 0;
+        color: var(--ddc-deep);
+        font-weight: 700;
+        line-height: 1.25;
+    }
+
+    .manual-card ol {
+        margin: 8px 0 0 1.25rem;
+        padding: 0;
+        color: var(--text-main);
+        line-height: 1.85;
+    }
+
+    .login-card {
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid var(--card-border);
+        border-radius: 26px;
+        padding: 24px 26px;
+        box-shadow: 0 18px 48px rgba(136, 14, 79, 0.10);
+        margin: 18px 0 20px 0;
+    }
+
+    .login-summary {
+        background: rgba(252, 228, 236, 0.52);
+        border: 1px solid rgba(216, 27, 96, 0.14);
+        border-radius: 16px;
+        padding: 10px 14px;
+        color: var(--ddc-deep);
+        font-size: 0.95rem;
+        line-height: 1.55;
+        margin-bottom: 14px;
     }
 
     @media (max-width: 760px) {
@@ -673,6 +718,184 @@ def create_word_doc(feedback_text: str, report_type: str, pii_findings: list[str
     return bio.getvalue()
 
 
+
+# -----------------------------
+# 3.1) Login and Google Sheet logging
+# -----------------------------
+TEAM_LEVEL_OPTIONS = [
+    "ส่วนกลาง",
+    "สคร.8 อุดรธานี",
+    "จังหวัด",
+    "อำเภอ",
+]
+
+DANGEROUS_DISEASES = [
+    "กาฬโรค",
+    "ไข้ทรพิษ",
+    "ไข้เหลือง",
+    "โรคทางเดินหายใจเฉียบพลันรุนแรง หรือโรคซาร์ส",
+    "โรคติดเชื้อไวรัสอีโบลา",
+    "โรคทางเดินหายใจตะวันออกกลาง หรือโรคเมอร์ส",
+    "โรคติดเชื้อไวรัสมาร์บวร์ก",
+    "โรคติดเชื้อไวรัสเฮนดรา",
+    "โรคติดเชื้อไวรัสนิปาห์",
+    "โรคไข้ลาสซา",
+    "ไข้เลือดออกไครเมียนคองโก",
+    "ไข้สมองอักเสบจากเชื้อเวสต์ไนล์",
+    "วัณโรคดื้อยาหลายขนาน",
+]
+
+SURVEILLANCE_DISEASES = [
+    "กามโรคของต่อมและท่อน้ำเหลือง",
+    "ไข้กาฬหลังแอ่น",
+    "ไข้ดำแดง",
+    "ไข้เด็งกี่",
+    "ไข้ปวดข้อยุงลาย",
+    "ไข้มาลาเรีย",
+    "ไข้ไม่ทราบสาเหตุ",
+    "ไข้สมองอักเสบชนิดญี่ปุ่น",
+    "ไข้สมองอักเสบไม่ระบุเชื้อสาเหตุ",
+    "ไข้หวัดนก",
+    "ไข้หวัดใหญ่",
+    "ไข้หัด",
+    "ไข้หัดเยอรมัน",
+    "ไข้เอนเทอริค",
+    "ไข้เอนเทอโรไวรัส",
+    "คอตีบ",
+    "คางทูม",
+    "ซิฟิลิส",
+    "บาดทะยัก",
+    "โปลิโอ",
+    "แผลริมอ่อน",
+    "ฝีมะม่วง",
+    "เมลิออยโดสิส",
+    "เยื่อหุ้มสมองอักเสบจากพยาธิ",
+    "เยื่อหุ้มสมองอักเสบไม่ระบุเชื้อสาเหตุ",
+    "โรคระบบทางเดินอาหารและน้ำเป็นสื่อ",
+    "โรคตับอักเสบจากเชื้อไวรัส ชนิด เอ บี ซี ดี และ อี",
+    "โรคตาแดงจากไวรัส",
+    "โรคติดเชื้อไวรัสซิกา",
+    "โรคติดเชื้อสเตร็ปโตคอคคัสซูอิส",
+    "โรคเท้าช้าง",
+    "โรคบรูเซลโลสิส",
+    "โรคบิด",
+    "โรคปอดอักเสบ",
+    "โรคพิษสุนัขบ้า",
+    "โรคมือเท้าปาก",
+    "โรคเรื้อน",
+    "โรคลีเจียนเนลโลสิส",
+    "โรคเลปโตสไปโรสิส",
+    "โรคสครับไทฟัส",
+    "โรคคุดทะราด หรือพินตา",
+    "โรคอัมพาตกล้ามเนื้ออ่อนปวกเปียกเฉียบพลัน",
+    "โรคอุจจาระร่วงเฉียบพลัน",
+    "โรคเอดส์",
+    "โรคแอนแทรกซ์",
+    "โลนที่อวัยวะเพศ",
+    "วัณโรค",
+    "ไวรัสตับอักเสบไม่ระบุเชื้อสาเหตุ",
+    "หนองใน",
+    "หนองในเทียม",
+    "หูดข้าวสุก",
+    "หูดอวัยวะเพศและทวารหนัก",
+    "อหิวาตกโรค",
+    "อาการภายหลังได้รับการสร้างเสริมภูมิคุ้มกันโรค",
+    "อาหารเป็นพิษ",
+    "ไอกรน",
+    "อื่น ๆ",
+]
+
+DISEASE_OPTIONS = (
+    [f"โรคติดต่ออันตราย - {name}" for name in DANGEROUS_DISEASES]
+    + [f"โรคติดต่อที่ต้องเฝ้าระวัง - {name}" for name in SURVEILLANCE_DISEASES]
+)
+
+
+def read_secret(key: str, default=None):
+    try:
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
+
+
+def load_service_account_info(uploaded_json_file):
+    """Load Google service-account JSON from Streamlit secrets or uploaded JSON."""
+    if uploaded_json_file is not None:
+        return json.loads(uploaded_json_file.getvalue().decode("utf-8"))
+
+    secret_obj = read_secret("gcp_service_account")
+    if secret_obj:
+        return dict(secret_obj)
+
+    secret_json = read_secret("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if secret_json:
+        return json.loads(secret_json)
+
+    return None
+
+
+def append_usage_log(sheet_id: str, service_account_info: dict, record: dict) -> tuple[bool, str]:
+    """Append login/use metadata to Google Sheet worksheet Usage_Log."""
+    if not sheet_id:
+        return False, "ยังไม่ได้ระบุ Google Sheet ID สำหรับบันทึก Log"
+    if not service_account_info:
+        return False, "ยังไม่ได้ตั้งค่า Service Account JSON สำหรับเขียน Google Sheet"
+
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+    except ImportError:
+        return False, "ยังไม่ได้ติดตั้ง gspread/google-auth ให้รัน: pip install gspread google-auth"
+
+    try:
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        credentials = Credentials.from_service_account_info(service_account_info, scopes=scopes)
+        client = gspread.authorize(credentials)
+        spreadsheet = client.open_by_key(sheet_id)
+
+        worksheet_name = "Usage_Log"
+        try:
+            worksheet = spreadsheet.worksheet(worksheet_name)
+        except gspread.WorksheetNotFound:
+            worksheet = spreadsheet.add_worksheet(title=worksheet_name, rows=1000, cols=12)
+
+        headers = [
+            "timestamp",
+            "team_level",
+            "team_name",
+            "disease",
+            "model_name",
+            "app_version",
+        ]
+        existing_values = worksheet.get_all_values()
+        if not existing_values:
+            worksheet.append_row(headers, value_input_option="USER_ENTERED")
+        elif existing_values[0][: len(headers)] != headers:
+            worksheet.insert_row(headers, index=1, value_input_option="USER_ENTERED")
+
+        worksheet.append_row(
+            [
+                record.get("timestamp", ""),
+                record.get("team_level", ""),
+                record.get("team_name", ""),
+                record.get("disease", ""),
+                record.get("model_name", ""),
+                record.get("app_version", ""),
+            ],
+            value_input_option="USER_ENTERED",
+        )
+        return True, "บันทึก Log ลง Google Sheet เรียบร้อย"
+    except Exception as exc:
+        return False, f"บันทึก Google Sheet ไม่สำเร็จ: {exc}"
+
+
+def reset_login():
+    st.session_state.logged_in = False
+    st.session_state.login_record = None
+    st.session_state.feedback = None
+    st.session_state.word_file = None
+    st.session_state.pii_findings = []
+
 # -----------------------------
 # 4) UI
 # -----------------------------
@@ -693,6 +916,7 @@ st.markdown(
                     <span class="pill">14 องค์ประกอบรายงาน</span>
                     <span class="pill">Outbreak / Single Case</span>
                     <span class="pill">PII Pre-scan</span>
+                    <span class="pill">Usage Log</span>
                     <span class="pill">Export Word</span>
                 </div>
             </div>
@@ -707,11 +931,20 @@ st.markdown(
     <div class="metric-strip">
         <div class="mini-metric"><div class="num">14</div><div class="label">หัวข้อประเมินหลัก</div></div>
         <div class="mini-metric"><div class="num">0–3</div><div class="label">คะแนนรายองค์ประกอบ</div></div>
-        <div class="mini-metric"><div class="num">DOCX</div><div class="label">ดาวน์โหลดผลประเมิน</div></div>
+        <div class="mini-metric"><div class="num">LOG</div><div class="label">บันทึกทีม/โรค/เวลา</div></div>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "login_record" not in st.session_state:
+    st.session_state.login_record = None
+if "feedback" not in st.session_state:
+    st.session_state.feedback = None
+    st.session_state.word_file = None
+    st.session_state.pii_findings = []
 
 with st.sidebar:
     st.markdown(
@@ -742,24 +975,110 @@ with st.sidebar:
         value=False,
         help="เปิดเฉพาะกรณีต้องการทำเอกสารแบบนิรนามทั้งหมด ปกติชื่อผู้รายงานและทีมสอบสวนไม่ถือเป็นข้อมูลผู้ป่วย",
     )
+
+    st.markdown("---")
+    st.subheader("📄 Google Sheet Log")
+    default_sheet_id = read_secret("LOG_SHEET_ID", "") or ""
+    log_sheet_id = st.text_input(
+        "Google Sheet ID",
+        value=default_sheet_id,
+        help="นำ ID จาก URL ของ Google Sheet มาใส่ หรือกำหนดใน st.secrets เป็น LOG_SHEET_ID",
+    )
+    service_account_json_file = st.file_uploader(
+        "Service Account JSON",
+        type=["json"],
+        help="อัปโหลดไฟล์ Service Account JSON หรือกำหนดใน st.secrets เป็น gcp_service_account",
+    )
+    st.caption("แชร์ Google Sheet ให้ client_email ของ Service Account เป็น Editor ก่อนใช้งาน")
+
+    if st.session_state.logged_in:
+        st.markdown("---")
+        st.success("เข้าสู่ระบบแล้ว")
+        if st.button("ออกจากระบบ", use_container_width=True):
+            reset_login()
+            st.rerun()
+
     st.markdown("---")
     st.markdown(
         '<div class="sidebar-footer">พัฒนาเพื่อสนับสนุนการประเมินรายงานสอบสวนโรคฉบับสมบูรณ์ โดยเน้นความถูกต้องทางระบาดวิทยา ความปลอดภัยข้อมูล และความพร้อมต่อการตีพิมพ์</div>',
         unsafe_allow_html=True,
     )
 
-with st.expander("📖 วิธีการใช้งาน", expanded=False):
-    st.markdown(
-        """
-        1. ระบุ Gemini API Key ที่แถบด้านซ้าย
-        2. เลือกประเภทการสอบสวน หรือเลือกให้ AI จำแนกจากเนื้อหารายงาน
-        3. อัปโหลดไฟล์ PDF ที่เลือกข้อความได้ ไม่ใช่ภาพสแกนล้วน
-        4. กดเริ่มตรวจสอบรายงาน
-        5. ดาวน์โหลดผลประเมินเป็นไฟล์ Word
+st.markdown(
+    """
+    <div class="manual-card">
+        <h3>📖 วิธีการใช้งาน</h3>
+        <ol>
+            <li>เข้าสู่ระบบอย่างง่าย โดยเลือกทีมที่เข้าใช้งานและโรคที่ใช้ประเมิน</li>
+            <li>ระบุ Gemini API Key ที่แถบด้านซ้าย</li>
+            <li>เลือกประเภทการสอบสวน หรือเลือกให้ AI จำแนกจากเนื้อหารายงาน</li>
+            <li>อัปโหลดไฟล์ PDF ที่เลือกข้อความได้ ไม่ใช่ภาพสแกนล้วน</li>
+            <li>กดเริ่มตรวจสอบรายงาน และดาวน์โหลดผลประเมินเป็นไฟล์ Word</li>
+        </ol>
+        <div class="small-note">หมายเหตุ: ระบบจะบันทึกทีม โรค และวันเวลาเข้าใช้งานลง Google Sheet หากตั้งค่า Sheet ID และ Service Account ถูกต้อง</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-        หมายเหตุ: ระบบมีการตรวจและ mask PII เบื้องต้น โดยเน้นข้อมูลผู้ป่วย/ผู้สัมผัส แต่ควรตรวจทานรายงานก่อนอัปโหลดทุกครั้ง
-        """
-    )
+if not st.session_state.logged_in:
+    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    st.markdown("### 🔐 เข้าสู่ระบบก่อนใช้งาน")
+    st.caption("ระบบจะบันทึกทีมที่เข้าใช้งาน โรคที่ใช้ประเมิน และวันเวลาแบบ timestamp ลง Google Sheet")
+
+    with st.form("simple_login_form", clear_on_submit=False):
+        login_col1, login_col2 = st.columns(2)
+        with login_col1:
+            team_level = st.selectbox("ทีมที่เข้าใช้งาน", TEAM_LEVEL_OPTIONS, index=1)
+            team_name = st.text_input(
+                "ชื่อหน่วยงาน/ทีม/จังหวัด/อำเภอ",
+                placeholder="เช่น กลุ่มระบาดวิทยา สคร.8, สสจ.หนองคาย, สสอ.ท่าบ่อ",
+            )
+        with login_col2:
+            disease_used = st.selectbox("โรคที่ใช้ประเมิน", DISEASE_OPTIONS, index=DISEASE_OPTIONS.index("โรคติดต่อที่ต้องเฝ้าระวัง - ไข้เด็งกี่"))
+            other_disease = st.text_input("ระบุโรคอื่น ๆ", placeholder="กรอกเมื่อเลือก อื่น ๆ")
+
+        submitted = st.form_submit_button("เข้าสู่ระบบและบันทึก Log", use_container_width=True)
+
+    if submitted:
+        if disease_used.endswith("อื่น ๆ") and not other_disease.strip():
+            st.warning("กรุณาระบุชื่อโรคในช่องโรคอื่น ๆ")
+        else:
+            selected_disease = other_disease.strip() if disease_used.endswith("อื่น ๆ") else disease_used
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            login_record = {
+                "timestamp": timestamp,
+                "team_level": team_level,
+                "team_name": team_name.strip(),
+                "disease": selected_disease,
+                "model_name": model_name,
+                "app_version": "modern_ui_v3_login_sheet",
+            }
+            service_info = load_service_account_info(service_account_json_file)
+            ok, message = append_usage_log(log_sheet_id.strip(), service_info, login_record)
+            st.session_state.logged_in = True
+            st.session_state.login_record = login_record
+            if ok:
+                st.success(message)
+            else:
+                st.warning(f"เข้าสู่ระบบแล้ว แต่ยังไม่สามารถบันทึกลง Google Sheet: {message}")
+            time.sleep(0.4)
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
+
+login_record = st.session_state.login_record or {}
+st.markdown(
+    f"""
+    <div class="login-summary">
+        <b>ผู้ใช้งาน:</b> {login_record.get('team_level', '-')} {login_record.get('team_name', '')}<br>
+        <b>โรคที่ใช้ประเมิน:</b> {login_record.get('disease', '-')}<br>
+        <b>เวลาเข้าใช้งาน:</b> {login_record.get('timestamp', '-')}
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 col1, col2 = st.columns([0.95, 1.55], gap="large")
 
@@ -793,11 +1112,6 @@ with col1:
 with col2:
     st.markdown('<div class="result-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📊 ผลการประเมิน</div>', unsafe_allow_html=True)
-
-    if "feedback" not in st.session_state:
-        st.session_state.feedback = None
-        st.session_state.word_file = None
-        st.session_state.pii_findings = []
 
     if st.button("🚀 เริ่มตรวจสอบรายงาน", type="primary", use_container_width=True):
         if not api_key_input:
