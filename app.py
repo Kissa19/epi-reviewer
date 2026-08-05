@@ -1,6 +1,9 @@
 import io
+import os
 import re
 import time
+import random
+import threading
 from datetime import datetime
 
 import streamlit as st
@@ -8,7 +11,8 @@ import PyPDF2
 from docx import Document
 from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # =========================================================
 # EpiScholar: AI Reviewer for Investigation Report
@@ -21,6 +25,12 @@ import google.generativeai as genai
 # -----------------------------
 DDC8_LOGO_FILE_ID = "1OWRqh2qNYdeWfJzjMq8u5LN8ZvJFAkjn"
 DDC8_LOGO_URL = f"https://drive.google.com/thumbnail?id={DDC8_LOGO_FILE_ID}&sz=w600"
+
+
+# จำกัดจำนวนงานพร้อมกันภายใน Streamlit instance เดียว
+# ผู้ใช้แต่ละคนใช้ API Key ของตนเอง แต่ยังต้องจำกัดภาระของแอปและลด request burst
+MAX_CONCURRENT_AI_JOBS = int(os.getenv("MAX_CONCURRENT_AI_JOBS", "6"))
+AI_JOB_SEMAPHORE = threading.BoundedSemaphore(MAX_CONCURRENT_AI_JOBS)
 
 # -----------------------------
 # 1) Page config and style
@@ -685,72 +695,150 @@ def ensure_required_sections(feedback: str) -> str:
         return warning + feedback
     return feedback
 
-def call_gemini_once(user_prompt: str, model_name: str) -> str:
-    """Single Gemini call. The caller handles retry/assembly."""
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        system_instruction=SYSTEM_INSTRUCTION,
-    )
-    response = model.generate_content(
-        user_prompt,
-        generation_config={
-            "temperature": 0.15,
-            "top_p": 0.8,
-            "top_k": 40,
-            "max_output_tokens": 8192,
-        },
+
+def build_full_review_prompt(report_text: str, report_type: str, pii_findings: list[str]) -> str:
+    """Build one complete request to reduce RPM usage during concurrent workshops."""
+    context = build_common_context(report_type, pii_findings)
+    return f"""
+{context}
+
+โปรดประเมินรายงานสอบสวนโรคฉบับสมบูรณ์ตามคำสั่งระบบ โดยตอบให้ครบทุกส่วนต่อไปนี้ในคำตอบเดียว:
+1) สรุปผลการประเมินภาพรวม
+2) จำแนกประเภทการสอบสวนและตรวจขั้นตอนที่เกี่ยวข้อง
+3) ประเมินองค์ประกอบรายงานหัวข้อ 1-14 พร้อมคะแนน 0-3 สิ่งที่พบ และข้อเสนอแนะ
+4) Fatal Issues, Major Issues และ Minor Issues
+5) จุดแข็งไม่เกิน 5 ข้อ
+6) สิ่งที่ต้องแก้ก่อนส่งตีพิมพ์ไม่เกิน 10 ข้อ
+7) สรุประดับความพร้อมเพียง 1 ระดับ
+
+ข้อกำหนด:
+- ห้ามใช้ markdown table
+- ห้ามคัดลอก PII กลับมาในคำตอบ
+- หากไม่พบข้อมูล ให้ระบุว่า "ไม่พบข้อมูลในรายงาน"
+- ให้กระชับแต่ครบถ้วน
+- ห้ามหยุดคำตอบกลางหัวข้อ
+
+เนื้อหารายงาน:
+{report_text}
+""".strip()
+
+
+def classify_api_error(exc: Exception) -> tuple[str, bool]:
+    """Return Thai user message and whether retry is appropriate."""
+    msg = str(exc)
+    lower = msg.lower()
+
+    if (
+        "api_key_invalid" in lower
+        or "api key not valid" in lower
+        or "invalid api key" in lower
+        or "401" in lower
+        or "unauthenticated" in lower
+    ):
+        return (
+            "❌ Gemini API Key ไม่ถูกต้องหรือใช้ไม่ได้ กรุณาสร้าง/ตรวจสอบ Key ใน Google AI Studio "
+            "และตรวจว่า Key อยู่ในโครงการที่เปิดใช้ Gemini API แล้ว",
+            False,
+        )
+
+    if "403" in lower or "permission_denied" in lower or "permission denied" in lower:
+        return (
+            "❌ API Key ไม่มีสิทธิ์ใช้โมเดลหรือบริการนี้ กรุณาตรวจข้อจำกัดของ Key, โครงการ และการเปิดใช้ Gemini API",
+            False,
+        )
+
+    if "429" in lower or "resource_exhausted" in lower or "quota" in lower or "rate limit" in lower:
+        return (
+            "❌ โควตาหรืออัตราการเรียก Gemini API ของโครงการเต็มชั่วคราว "
+            "การเปลี่ยนเป็น API Key อื่นในโครงการเดิมอาจไม่ช่วย เพราะโควตาถูกนับระดับโครงการ "
+            "กรุณารอแล้วลองใหม่ หรือตรวจแพ็กเกจชำระเงินและ Rate limits ของโครงการ",
+            True,
+        )
+
+    if "503" in lower or "unavailable" in lower or "overloaded" in lower:
+        return (
+            "❌ บริการ Gemini หนาแน่นหรือไม่พร้อมใช้งานชั่วคราว กรุณารอสักครู่แล้วลองใหม่",
+            True,
+        )
+
+    if "deadline" in lower or "timeout" in lower or "timed out" in lower:
+        return (
+            "❌ การวิเคราะห์ใช้เวลานานเกินกำหนด กรุณาลองใหม่ หรือลดขนาดรายงาน",
+            True,
+        )
+
+    return (f"❌ วิเคราะห์ไม่สำเร็จ: {msg}", False)
+
+
+def call_gemini_once(api_key: str, user_prompt: str, model_name: str) -> str:
+    """Call Gemini using the maintained google-genai SDK."""
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=model_name,
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION,
+            temperature=0.15,
+            top_p=0.8,
+            max_output_tokens=12000,
+        ),
     )
     feedback = getattr(response, "text", "") or ""
     return normalize_text_for_display(feedback)
 
 
-def analyze_report_with_retry(api_key: str, text: str, report_type: str, model_name: str, pii_findings: list[str]) -> str:
-    """Call Gemini API in two rounds to reduce output truncation.
-
-    Long investigation reports often exceed a single response budget when we ask for
-    overview + 14 components + final recommendations in one call. This function
-    intentionally splits the review into two calls and concatenates the results.
+def analyze_report_with_retry(
+    api_key: str,
+    text: str,
+    report_type: str,
+    model_name: str,
+    pii_findings: list[str],
+) -> str:
     """
-    genai.configure(api_key=api_key)
-    max_retries = 3
+    One Gemini request per report, using each user's API key and a process-level queue.
 
-    prompts = [
-        ("รอบที่ 1/2: ภาพรวม ประเภทการสอบสวน และหัวข้อ 1-7", build_part1_prompt(text, report_type, pii_findings)),
-        ("รอบที่ 2/2: หัวข้อ 8-14 ข้อผิดพลาด จุดแข็ง และสรุปความพร้อม", build_part2_prompt(text, report_type, pii_findings)),
-    ]
+    Previous version used two rounds and retried each round up to three times.
+    Under concurrent use this could multiply API traffic to six requests per user.
+    """
+    prompt = build_full_review_prompt(text, report_type, pii_findings)
+    max_attempts = 2
 
-    outputs = []
-    for label, prompt in prompts:
-        last_error = None
-        for attempt in range(max_retries):
+    acquired = AI_JOB_SEMAPHORE.acquire(timeout=180)
+    if not acquired:
+        return (
+            "❌ คิววิเคราะห์หนาแน่นเกินไป กรุณารอ 2–3 นาทีแล้วกดใหม่ "
+            "ระบบจำกัดจำนวนงานพร้อมกันเพื่อป้องกันแอปทำงานหนักเกินไป"
+        )
+
+    try:
+        for attempt in range(max_attempts):
             try:
-                with st.spinner(f"⏳ EpiScholar กำลังวิเคราะห์ {label}..."):
-                    part = call_gemini_once(prompt, model_name)
-                if not part.strip():
-                    last_error = "โมเดลไม่ส่งผลลัพธ์กลับมา"
-                    continue
-                outputs.append(part)
-                break
-            except Exception as exc:
-                last_error = str(exc)
-                err_msg = str(exc)
-                if "429" in err_msg or "quota" in err_msg.lower() or "rate" in err_msg.lower():
-                    if attempt < max_retries - 1:
-                        wait_time = (attempt + 1) * 10
-                        st.warning(f"⚠️ โควตาการใช้งานชั่วคราวเต็ม กำลังรอ {wait_time} วินาทีก่อนลองใหม่...")
-                        time.sleep(wait_time)
-                        continue
-                    return "❌ โควตา API เต็มชั่วคราว กรุณารอสักครู่แล้วลองใหม่อีกครั้ง"
-                if attempt < max_retries - 1:
-                    time.sleep(3)
-                    continue
-        else:
-            return f"❌ วิเคราะห์ไม่สำเร็จใน{label}: {last_error}"
+                with st.spinner(
+                    f"⏳ กำลังวิเคราะห์รายงาน (คิวพร้อมกันสูงสุด {MAX_CONCURRENT_AI_JOBS} งาน)..."
+                ):
+                    feedback = call_gemini_once(api_key, prompt, model_name)
 
-    combined = "\n\n".join(outputs)
-    combined = normalize_text_for_display(combined)
-    combined = ensure_required_sections(combined)
-    return combined if combined.strip() else "❌ โมเดลไม่ส่งผลลัพธ์กลับมา กรุณาลองใหม่ หรือลดความยาวรายงาน"
+                if not feedback.strip():
+                    return "❌ โมเดลไม่ส่งผลลัพธ์กลับมา กรุณาลองใหม่ หรือลดความยาวรายงาน"
+
+                feedback = ensure_required_sections(feedback)
+                return feedback
+
+            except Exception as exc:
+                user_message, retryable = classify_api_error(exc)
+
+                if retryable and attempt < max_attempts - 1:
+                    wait_time = 12 + random.randint(0, 5)
+                    st.warning(
+                        f"⚠️ API ไม่พร้อมชั่วคราว ระบบจะลองอีก 1 ครั้งใน {wait_time} วินาที..."
+                    )
+                    time.sleep(wait_time)
+                    continue
+
+                return user_message
+    finally:
+        AI_JOB_SEMAPHORE.release()
+
 
 def add_markdown_like_line_to_doc(doc: Document, line: str) -> None:
     """Add a markdown-like line to docx with simple heading/list handling."""
@@ -880,13 +968,28 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     st.header("⚙️ ตั้งค่าระบบ")
-    api_key_input = st.text_input("🔑 Gemini API Key", type="password")
+    api_key_input = st.text_input(
+        "🔑 Gemini API Key ของผู้ใช้งาน",
+        type="password",
+        help=(
+            "ให้ผู้ใช้งานแต่ละคนกรอก API Key ของตนเอง "
+            "แนะนำให้สร้างจาก Google Cloud Project ของตนเองเพื่อแยกโควตา"
+        ),
+        placeholder="กรอก Gemini API Key ของคุณ",
+    )
+    default_model = os.getenv("GEMINI_DEFAULT_MODEL", "gemini-2.5-flash")
+    model_options = list(dict.fromkeys([default_model, "gemini-2.5-flash", "gemini-2.5-pro"]))
     model_name = st.selectbox(
         "🤖 โมเดลที่ใช้วิเคราะห์",
-        options=["gemini-2.5-flash", "gemini-2.5-pro"],
+        options=model_options,
         index=0,
-        help="แนะนำ gemini-2.5-flash สำหรับความเร็วและต้นทุนต่ำกว่า",
+        help="การใช้งานพร้อมกันหลายคนควรใช้ Flash เพื่อลดเวลาและการใช้โควตา",
     )
+    st.caption(
+        "การอบรมแบบหลายคน: ควรใช้คนละ API Key และคนละ Google Cloud Project "
+        "เพื่อไม่ให้ใช้โควตาร่วมกัน"
+    )
+
     mask_before_send = st.checkbox(
         "Mask PII ผู้ป่วยก่อนส่งเข้า AI",
         value=True,
@@ -908,7 +1011,7 @@ st.markdown(
     <div class="guide-card">
         <div class="section-title clean-title">📖 วิธีการใช้งาน</div>
         <ol class="guide-list">
-            <li>ระบุ Gemini API Key ที่แถบด้านซ้าย</li>
+            <li>ผู้ใช้งานแต่ละคนกรอก Gemini API Key ของตนเองที่แถบด้านซ้าย</li>
             <li>เลือกประเภทการสอบสวน หรือเลือกให้ AI จำแนกจากเนื้อหารายงาน</li>
             <li>อัปโหลดไฟล์ PDF ที่เลือกข้อความได้ ไม่ใช่ภาพสแกนล้วน</li>
             <li>กดเริ่มตรวจสอบรายงาน</li>
@@ -959,13 +1062,22 @@ with col2:
         st.session_state.feedback = None
         st.session_state.word_file = None
         st.session_state.pii_findings = []
+        st.session_state.is_processing = False
 
-    if st.button("🚀 เริ่มตรวจสอบรายงาน", type="primary", use_container_width=True):
+    start_clicked = st.button(
+        "🚀 เริ่มตรวจสอบรายงาน",
+        type="primary",
+        use_container_width=True,
+        disabled=st.session_state.is_processing,
+    )
+
+    if start_clicked:
         if not api_key_input:
-            st.warning("⚠️ กรุณาระบุ Gemini API Key ก่อนครับ")
+            st.warning("⚠️ กรุณากรอก Gemini API Key ของผู้ใช้งานก่อน")
         elif not uploaded_file:
             st.warning("⚠️ กรุณาอัปโหลดไฟล์ PDF ก่อนครับ")
         else:
+            st.session_state.is_processing = True
             with st.spinner("⏳ EpiScholar กำลังอ่านข้อความจาก PDF..."):
                 try:
                     raw_text = extract_text_from_pdf(uploaded_file)
@@ -989,7 +1101,7 @@ with col2:
                     for item in pii_findings:
                         st.write(f"- {item}")
 
-            with st.spinner("⏳ EpiScholar กำลังวิเคราะห์รายงาน..."):
+            try:
                 feedback = analyze_report_with_retry(
                     api_key=api_key_input,
                     text=text_for_analysis,
@@ -997,6 +1109,8 @@ with col2:
                     model_name=model_name,
                     pii_findings=pii_findings,
                 )
+            finally:
+                st.session_state.is_processing = False
 
             if feedback.startswith("❌"):
                 st.error(feedback)
