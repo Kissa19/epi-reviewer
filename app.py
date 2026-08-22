@@ -4,6 +4,7 @@ import re
 import time
 import random
 import threading
+import hashlib
 from datetime import datetime
 
 import streamlit as st
@@ -462,6 +463,9 @@ SYSTEM_INSTRUCTION = """
 - ห้ามตอบยาวเกินจำเป็น
 - ให้ใช้ภาษาไทยทางวิชาการ แต่ต้องอ่านเข้าใจง่าย
 - ข้อเสนอแนะต้องระบุสิ่งที่ควรแก้ให้ชัดเจน
+- ทุกหัวข้อประเมิน 1-14 ให้เพิ่มบรรทัด "หลักฐานในรายงาน:" โดยระบุเลขหน้าจาก marker --- หน้า X --- และสรุปข้อความที่ใช้ตัดสินอย่างสั้น ๆ; หากเป็น DOCX หรือหาเลขหน้าไม่ได้ให้ระบุ "ไม่สามารถระบุเลขหน้าได้"
+- ตรวจความสอดคล้องข้ามส่วนอย่างน้อย: วัตถุประสงค์↔วิธีการ, วิธีการ↔ผล, ผล↔สรุป, case definition↔จำนวนผู้ป่วย, ตาราง/ตัวเลข↔ข้อความบรรยาย, มาตรการ↔ผลการสอบสวน
+- หากพบตัวเลข OR/RR/95% CI ให้ประเมินความสมเหตุสมผลของการตีความ แต่ห้ามคำนวณใหม่จากข้อมูลที่ไม่ครบ
 - ถ้าข้อมูลในรายงานไม่พบ ให้ระบุว่า "ไม่พบข้อมูลในรายงาน"
 - หาก User Prompt กำหนดให้ประเมินเฉพาะบางส่วนหรือบางหัวข้อ ให้ตอบเฉพาะขอบเขตนั้นเท่านั้น ห้ามตอบนอกขอบเขต เพราะระบบจะเรียกวิเคราะห์หลายรอบแล้วรวมผลภายหลัง
 """
@@ -470,7 +474,7 @@ SYSTEM_INSTRUCTION = """
 # 3) Utility functions
 # -----------------------------
 def extract_text_from_pdf(pdf_file) -> str:
-    """Extract text from uploaded PDF using PyPDF2."""
+    """Extract text from uploaded PDF while preserving page markers for evidence citation."""
     try:
         pdf_reader = PyPDF2.PdfReader(pdf_file)
         text_parts = []
@@ -481,6 +485,64 @@ def extract_text_from_pdf(pdf_file) -> str:
         return "\n".join(text_parts).strip()
     except Exception as exc:
         raise RuntimeError(f"ไม่สามารถอ่านข้อความจาก PDF ได้: {exc}") from exc
+
+
+def extract_text_from_docx(docx_file) -> str:
+    """Extract paragraphs and table cells from DOCX."""
+    try:
+        doc = Document(docx_file)
+        parts = []
+        for p in doc.paragraphs:
+            if p.text.strip():
+                parts.append(p.text.strip())
+        for table in doc.tables:
+            for row in table.rows:
+                cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                if cells:
+                    parts.append(" | ".join(cells))
+        return "\n".join(parts).strip()
+    except Exception as exc:
+        raise RuntimeError(f"ไม่สามารถอ่านข้อความจาก DOCX ได้: {exc}") from exc
+
+
+def extract_report_text(uploaded_file) -> str:
+    """Dispatch extraction by uploaded file extension."""
+    name = (getattr(uploaded_file, "name", "") or "").lower()
+    if name.endswith(".pdf"):
+        return extract_text_from_pdf(uploaded_file)
+    if name.endswith(".docx"):
+        return extract_text_from_docx(uploaded_file)
+    raise RuntimeError("รองรับเฉพาะไฟล์ PDF และ DOCX")
+
+
+def assess_source_quality(text: str, filename: str) -> dict:
+    """Simple local quality gate before sending a report to AI."""
+    page_markers = len(re.findall(r"--- หน้า \d+ ---", text))
+    chars = len(text.strip())
+    words = len(re.findall(r"\S+", text))
+    warnings = []
+    if chars < 500:
+        warnings.append("อ่านข้อความได้น้อยมาก อาจเป็น PDF สแกนหรือไฟล์ไม่มี text layer")
+    elif chars < 2500:
+        warnings.append("ข้อความค่อนข้างสั้น ควรตรวจว่าเป็นรายงานฉบับสมบูรณ์จริง")
+    if filename.lower().endswith('.pdf') and page_markers == 0:
+        warnings.append("ไม่พบตัวแบ่งหน้า จึงอ้างอิงเลขหน้าได้ไม่สมบูรณ์")
+    return {"chars": chars, "words": words, "pages": page_markers, "warnings": warnings}
+
+
+def parse_score_summary(feedback: str) -> dict:
+    """Parse the 14 component scores from model output."""
+    scores = [int(x) for x in re.findall(r"คะแนน\s*:\s*([0-3])(?:\s*/\s*3)?", feedback or "")]
+    scores = scores[:14]
+    total = sum(scores)
+    max_score = 42
+    pct = round(total * 100 / max_score, 1) if len(scores) == 14 else None
+    return {"scores": scores, "count": len(scores), "total": total, "max": max_score, "pct": pct}
+
+
+def make_review_cache_key(text: str, report_type: str, model_name: str) -> str:
+    payload = f"{report_type}|{model_name}|{text}".encode("utf-8", errors="ignore")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def normalize_text_for_display(text: str) -> str:
@@ -705,7 +767,7 @@ def build_full_review_prompt(report_text: str, report_type: str, pii_findings: l
 โปรดประเมินรายงานสอบสวนโรคฉบับสมบูรณ์ตามคำสั่งระบบ โดยตอบให้ครบทุกส่วนต่อไปนี้ในคำตอบเดียว:
 1) สรุปผลการประเมินภาพรวม
 2) จำแนกประเภทการสอบสวนและตรวจขั้นตอนที่เกี่ยวข้อง
-3) ประเมินองค์ประกอบรายงานหัวข้อ 1-14 พร้อมคะแนน 0-3 สิ่งที่พบ และข้อเสนอแนะ
+3) ประเมินองค์ประกอบรายงานหัวข้อ 1-14 พร้อมคะแนน 0-3 สิ่งที่พบ หลักฐานในรายงาน (เลขหน้าเมื่อระบุได้) และข้อเสนอแนะ
 4) Fatal Issues, Major Issues และ Minor Issues
 5) จุดแข็งไม่เกิน 5 ข้อ
 6) สิ่งที่ต้องแก้ก่อนส่งตีพิมพ์ไม่เกิน 10 ข้อ
@@ -1013,7 +1075,7 @@ st.markdown(
         <ol class="guide-list">
             <li>ผู้ใช้งานแต่ละคนกรอก Gemini API Key ของตนเองที่แถบด้านซ้าย</li>
             <li>เลือกประเภทการสอบสวน หรือเลือกให้ AI จำแนกจากเนื้อหารายงาน</li>
-            <li>อัปโหลดไฟล์ PDF ที่เลือกข้อความได้ ไม่ใช่ภาพสแกนล้วน</li>
+            <li>อัปโหลดไฟล์ PDF ที่เลือกข้อความได้ หรือไฟล์ DOCX</li>
             <li>กดเริ่มตรวจสอบรายงาน</li>
             <li>ดาวน์โหลดผลประเมินเป็นไฟล์ Word</li>
         </ol>
@@ -1039,7 +1101,7 @@ with col1:
         ],
         index=0,
     )
-    uploaded_file = st.file_uploader("อัปโหลดไฟล์รายงาน (PDF)", type=["pdf"])
+    uploaded_file = st.file_uploader("อัปโหลดไฟล์รายงาน (PDF / DOCX)", type=["pdf", "docx"], max_upload_size=50)
 
     if uploaded_file:
         st.caption(f"ไฟล์ที่เลือก: {uploaded_file.name}")
@@ -1047,7 +1109,7 @@ with col1:
     st.markdown(
         """
         <div class="small-note">
-        คำแนะนำ: หากเป็น PDF ที่สแกนจากภาพ ระบบอาจอ่านข้อความได้น้อย ควรใช้ไฟล์ PDF ที่สามารถลากเลือกข้อความได้
+        คำแนะนำ: PDF ควรเป็นไฟล์ที่ลากเลือกข้อความได้ หากเป็นภาพสแกนล้วนให้ทำ OCR ก่อน หรือใช้ต้นฉบับ DOCX
         </div>
         """,
         unsafe_allow_html=True,
@@ -1063,6 +1125,7 @@ with col2:
         st.session_state.word_file = None
         st.session_state.pii_findings = []
         st.session_state.is_processing = False
+        st.session_state.review_cache = {}
 
     start_clicked = st.button(
         "🚀 เริ่มตรวจสอบรายงาน",
@@ -1078,18 +1141,25 @@ with col2:
             st.warning("⚠️ กรุณาอัปโหลดไฟล์ PDF ก่อนครับ")
         else:
             st.session_state.is_processing = True
-            with st.spinner("⏳ EpiScholar กำลังอ่านข้อความจาก PDF..."):
-                try:
-                    raw_text = extract_text_from_pdf(uploaded_file)
-                except Exception as exc:
-                    st.error(str(exc))
+            raw_text = ""
+            try:
+                with st.spinner("⏳ EpiScholar กำลังอ่านข้อความจากไฟล์..."):
+                    raw_text = extract_report_text(uploaded_file)
+                source_quality = assess_source_quality(raw_text, uploaded_file.name)
+                if source_quality["warnings"]:
+                    for warning in source_quality["warnings"]:
+                        st.warning(f"⚠️ {warning}")
+                if source_quality["chars"] < 500:
+                    st.error("❌ ระบบอ่านข้อความได้น้อยเกินไป จึงยังไม่ส่งข้อมูลเข้า AI เพื่อป้องกันการประเมินคลาดเคลื่อน")
+                    st.session_state.is_processing = False
                     st.stop()
-
-            if len(raw_text.strip()) < 500:
-                st.error(
-                    "❌ ระบบอ่านข้อความจาก PDF ได้น้อยมาก ไฟล์อาจเป็น PDF สแกนหรือไม่มี text layer "
-                    "กรุณาใช้ PDF ที่เลือกข้อความได้ หรือแปลงด้วย OCR ก่อน"
+                st.caption(
+                    f"อ่านข้อความได้ประมาณ {source_quality['words']:,} คำ / {source_quality['chars']:,} ตัวอักษร"
+                    + (f" / {source_quality['pages']} หน้า" if source_quality['pages'] else "")
                 )
+            except Exception as exc:
+                st.session_state.is_processing = False
+                st.error(str(exc))
                 st.stop()
 
             pii_findings = scan_pii(raw_text, strict_staff_names=strict_staff_names)
@@ -1101,14 +1171,22 @@ with col2:
                     for item in pii_findings:
                         st.write(f"- {item}")
 
+            cache_key = make_review_cache_key(text_for_analysis, report_type, model_name)
             try:
-                feedback = analyze_report_with_retry(
-                    api_key=api_key_input,
-                    text=text_for_analysis,
-                    report_type=report_type,
-                    model_name=model_name,
-                    pii_findings=pii_findings,
-                )
+                cached = st.session_state.review_cache.get(cache_key)
+                if cached:
+                    feedback = cached
+                    st.info("ℹ️ ใช้ผลวิเคราะห์เดิมใน session นี้ เพื่อลดการเรียก API ซ้ำ")
+                else:
+                    feedback = analyze_report_with_retry(
+                        api_key=api_key_input,
+                        text=text_for_analysis,
+                        report_type=report_type,
+                        model_name=model_name,
+                        pii_findings=pii_findings,
+                    )
+                    if feedback and not feedback.startswith("❌"):
+                        st.session_state.review_cache[cache_key] = feedback
             finally:
                 st.session_state.is_processing = False
 
@@ -1122,12 +1200,20 @@ with col2:
 
     if st.session_state.feedback:
         st.markdown("### ผลลัพธ์")
+        score_summary = parse_score_summary(st.session_state.feedback)
+        if score_summary["count"] == 14:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("คะแนนรวม", f"{score_summary['total']} / {score_summary['max']}")
+            m2.metric("ร้อยละ", f"{score_summary['pct']}%")
+            m3.metric("องค์ประกอบที่ประเมิน", "14 / 14")
+        else:
+            st.warning(f"⚠️ ตรวจจับคะแนนได้ {score_summary['count']} จาก 14 หัวข้อ ควรตรวจผลลัพธ์ก่อนนำไปใช้")
         st.markdown(st.session_state.feedback)
 
         st.download_button(
             label="💾 ดาวน์โหลดผลการประเมิน (Word)",
             data=st.session_state.word_file,
-            file_name="EpiScholar_Feedback.docx",
+            file_name="EpiScholar_v2_Feedback.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
         )
