@@ -133,7 +133,8 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
 
     :root {
         --ddc-pink: #D81B60;
@@ -143,6 +144,11 @@ st.markdown(
         --text-main: #172033;
         --text-muted: #667085;
         --card-border: rgba(216, 27, 96, 0.12);
+        --card-shadow: 0 18px 45px rgba(136, 14, 79, 0.08);
+        --soft-shadow: 0 10px 30px rgba(17, 24, 39, 0.05);
+        --success: #10B981;
+        --warn: #F59E0B;
+        --info: #7C3AED;
     }
 
     html, body, [class*="css"], .stMarkdown, .stText, .stButton, .stTextInput,
@@ -152,15 +158,16 @@ st.markdown(
 
     .stApp {
         background:
-            radial-gradient(circle at top left, rgba(216, 27, 96, 0.10), transparent 32rem),
+            radial-gradient(circle at top left, rgba(216, 27, 96, 0.10), transparent 30rem),
+            radial-gradient(circle at right top, rgba(124, 58, 237, 0.06), transparent 26rem),
             linear-gradient(180deg, #FFFFFF 0%, var(--ddc-bg) 100%);
         color: var(--text-main);
     }
 
     .block-container {
-        padding-top: 1.4rem;
+        padding-top: 1.2rem;
         padding-bottom: 3rem;
-        max-width: 1280px;
+        max-width: 1320px;
     }
 
     header[data-testid="stHeader"] {
@@ -168,7 +175,7 @@ st.markdown(
     }
 
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #7B0B45 0%, #AD1457 58%, #D81B60 100%) !important;
+        background: linear-gradient(180deg, #6C0A3E 0%, #AD1457 56%, #D81B60 100%) !important;
         color: white !important;
         border-right: 1px solid rgba(255,255,255,0.18);
     }
@@ -179,22 +186,24 @@ st.markdown(
     section[data-testid="stSidebar"] span,
     section[data-testid="stSidebar"] h1,
     section[data-testid="stSidebar"] h2,
-    section[data-testid="stSidebar"] h3 {
+    section[data-testid="stSidebar"] h3,
+    section[data-testid="stSidebar"] small {
         color: white !important;
     }
 
     .brand-card {
-        background: rgba(255, 255, 255, 0.14);
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        border-radius: 22px;
-        padding: 16px 14px;
+        background: rgba(255, 255, 255, 0.13);
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 24px;
+        padding: 18px 16px;
         text-align: center;
         box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12);
         margin-bottom: 16px;
+        backdrop-filter: blur(10px);
     }
 
     .brand-card img {
-        max-width: 128px;
+        max-width: 112px;
         border-radius: 18px;
         background: white;
         padding: 8px;
@@ -202,7 +211,7 @@ st.markdown(
     }
 
     .brand-title {
-        font-size: 1.05rem;
+        font-size: 1.08rem;
         font-weight: 700;
         letter-spacing: 0.2px;
         line-height: 1.35;
@@ -210,46 +219,66 @@ st.markdown(
 
     .brand-subtitle {
         font-size: 0.84rem;
-        opacity: 0.92;
+        opacity: 0.95;
         line-height: 1.45;
         margin-top: 4px;
     }
 
-    .hero-box {
-        position: relative;
-        overflow: hidden;
-        background:
-            linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(252, 228, 236, 0.95) 100%);
-        border: 1px solid var(--card-border);
-        padding: 26px 28px;
-        border-radius: 28px;
-        margin-bottom: 18px;
-        box-shadow: 0 18px 55px rgba(136, 14, 79, 0.12);
+    .sidebar-group {
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 18px;
+        padding: 14px 14px 8px 14px;
+        margin-bottom: 14px;
     }
 
-    .hero-box::after {
-        content: "";
-        position: absolute;
-        right: -70px;
-        top: -85px;
-        width: 240px;
-        height: 240px;
-        border-radius: 50%;
-        background: rgba(216, 27, 96, 0.12);
-    }
-
-    .hero-grid {
+    .sidebar-title {
         display: flex;
         align-items: center;
-        gap: 18px;
+        gap: 8px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .hero-shell {
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(252,228,236,0.96) 48%, rgba(255,255,255,0.95) 100%);
+        border: 1px solid var(--card-border);
+        border-radius: 30px;
+        padding: 28px 28px 22px 28px;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 18px;
+    }
+
+    .hero-shell::before {
+        content: "";
+        position: absolute;
+        inset: auto -80px -80px auto;
+        width: 220px;
+        height: 220px;
+        border-radius: 999px;
+        background: rgba(216, 27, 96, 0.10);
+    }
+
+    .hero-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(290px, 0.75fr);
+        gap: 20px;
+        align-items: stretch;
         position: relative;
         z-index: 1;
     }
 
+    .hero-main {
+        display: flex;
+        gap: 18px;
+        align-items: flex-start;
+    }
+
     .hero-logo {
-        flex: 0 0 auto;
-        width: 92px;
-        height: 92px;
+        width: 96px;
+        height: 96px;
         border-radius: 24px;
         background: white;
         display: flex;
@@ -257,6 +286,7 @@ st.markdown(
         justify-content: center;
         box-shadow: 0 12px 35px rgba(136, 14, 79, 0.16);
         border: 1px solid rgba(216, 27, 96, 0.10);
+        flex: 0 0 auto;
     }
 
     .hero-logo img {
@@ -265,36 +295,203 @@ st.markdown(
         object-fit: contain;
     }
 
+    .hero-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(216, 27, 96, 0.12);
+        color: var(--ddc-deep);
+        font-size: 0.82rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
     .hero-title {
         margin: 0;
         color: var(--ddc-deep);
-        font-size: clamp(1.65rem, 3vw, 2.55rem);
-        font-weight: 700;
-        letter-spacing: -0.02em;
+        font-size: clamp(1.8rem, 3.2vw, 2.7rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.08;
     }
 
     .hero-subtitle {
         color: #4B5563;
-        font-size: 1.05rem;
-        margin-top: 6px;
-        line-height: 1.55;
+        font-size: 1.02rem;
+        margin-top: 8px;
+        line-height: 1.65;
+        max-width: 760px;
     }
 
     .pill-row {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: 14px;
+        margin-top: 16px;
     }
 
     .pill {
-        background: rgba(216, 27, 96, 0.10);
+        background: rgba(255, 255, 255, 0.72);
         color: var(--ddc-deep);
         border: 1px solid rgba(216, 27, 96, 0.14);
-        padding: 7px 12px;
+        padding: 8px 12px;
         border-radius: 999px;
-        font-size: 0.88rem;
+        font-size: 0.87rem;
         font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .hero-side {
+        display: grid;
+        gap: 12px;
+        align-content: start;
+    }
+
+    .feature-card {
+        background: rgba(255,255,255,0.72);
+        border: 1px solid rgba(216, 27, 96, 0.12);
+        border-radius: 20px;
+        padding: 15px 16px;
+        box-shadow: var(--soft-shadow);
+    }
+
+    .feature-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        color: var(--ddc-deep);
+        margin-bottom: 4px;
+    }
+
+    .icon-chip {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, rgba(216,27,96,0.14), rgba(124,58,237,0.14));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--ddc-deep);
+        font-size: 1rem;
+        flex: 0 0 auto;
+    }
+
+    .feature-note {
+        color: var(--text-muted);
+        font-size: 0.92rem;
+        line-height: 1.5;
+    }
+
+    .metric-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 14px 0 16px 0;
+    }
+
+    .mini-metric {
+        background: rgba(255,255,255,0.88);
+        border: 1px solid rgba(216, 27, 96, 0.10);
+        border-radius: 20px;
+        padding: 14px 14px;
+        box-shadow: var(--soft-shadow);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .metric-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(216,27,96,0.16), rgba(124,58,237,0.14));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--ddc-deep);
+        font-size: 1.08rem;
+        flex: 0 0 auto;
+    }
+
+    .mini-metric .num {
+        color: var(--ddc-pink);
+        font-weight: 800;
+        font-size: 1.25rem;
+        line-height: 1.05;
+    }
+
+    .mini-metric .label {
+        color: var(--text-muted);
+        font-size: 0.84rem;
+        margin-top: 2px;
+        line-height: 1.35;
+    }
+
+    .workshop-band {
+        background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(249,250,251,0.92));
+        border: 1px solid rgba(124,58,237,0.12);
+        border-radius: 24px;
+        padding: 18px 18px 14px 18px;
+        box-shadow: var(--soft-shadow);
+        margin-bottom: 20px;
+    }
+
+    .workshop-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+
+    .workshop-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-main);
+        font-weight: 700;
+        font-size: 1.02rem;
+    }
+
+    .workshop-subtitle {
+        color: var(--text-muted);
+        font-size: 0.92rem;
+    }
+
+    .workshop-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .status-card {
+        background: #FFFFFF;
+        border: 1px solid rgba(17,24,39,0.06);
+        border-radius: 18px;
+        padding: 14px 14px;
+        box-shadow: 0 8px 22px rgba(17,24,39,0.04);
+    }
+
+    .status-label {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 5px;
+    }
+
+    .status-value {
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: var(--text-main);
+        line-height: 1.1;
     }
 
     div[data-testid="stVerticalBlockBorderWrapper"],
@@ -306,47 +503,76 @@ st.markdown(
     }
 
     .input-card, .result-card {
-        background: rgba(255, 255, 255, 0.86);
+        background: rgba(255, 255, 255, 0.90);
         border: 1px solid var(--card-border);
         border-radius: 24px;
-        padding: 20px 22px;
-        box-shadow: 0 16px 45px rgba(17, 24, 39, 0.06);
+        padding: 22px 22px;
+        box-shadow: var(--card-shadow);
         min-height: 100%;
     }
 
     .section-title {
-        font-size: 1.2rem;
-        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1.16rem;
+        font-weight: 800;
         color: var(--ddc-deep);
-        margin-bottom: 8px;
+        margin-bottom: 10px;
     }
 
-    .metric-strip {
+    .section-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, rgba(216,27,96,0.14), rgba(124,58,237,0.16));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--ddc-deep);
+        font-size: 0.98rem;
+    }
+
+    .sub-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,247,251,0.9));
+        border: 1px solid rgba(216,27,96,0.10);
+        border-radius: 18px;
+        padding: 14px 16px;
+        margin: 12px 0 14px 0;
+    }
+
+    .sub-card-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
-        margin: 14px 0 18px 0;
     }
 
-    .mini-metric {
+    .sub-chip {
         background: #FFFFFF;
-        border: 1px solid rgba(216, 27, 96, 0.10);
-        border-radius: 18px;
-        padding: 12px 12px;
-        box-shadow: 0 10px 24px rgba(136, 14, 79, 0.06);
+        border: 1px solid rgba(216,27,96,0.08);
+        border-radius: 14px;
+        padding: 10px 10px;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
     }
 
-    .mini-metric .num {
+    .sub-chip i {
         color: var(--ddc-pink);
-        font-weight: 700;
-        font-size: 1.24rem;
-        line-height: 1;
+        margin-top: 2px;
     }
 
-    .mini-metric .label {
+    .sub-chip strong {
+        display: block;
+        font-size: 0.87rem;
+        color: var(--text-main);
+    }
+
+    .sub-chip span {
+        display: block;
+        font-size: 0.78rem;
         color: var(--text-muted);
-        font-size: 0.82rem;
-        margin-top: 4px;
+        line-height: 1.35;
     }
 
     div.stButton > button:first-child,
@@ -356,7 +582,7 @@ st.markdown(
         border-radius: 14px;
         font-weight: 700;
         border: none;
-        padding: 0.75rem 1rem;
+        padding: 0.78rem 1rem;
         box-shadow: 0 12px 26px rgba(216, 27, 96, 0.22);
         transition: transform 0.12s ease, box-shadow 0.12s ease;
     }
@@ -370,43 +596,38 @@ st.markdown(
         box-shadow: 0 16px 34px rgba(216, 27, 96, 0.28);
     }
 
-    .stTextInput input, .stSelectbox div[data-baseweb="select"], textarea {
+    .stTextInput input, .stSelectbox div[data-baseweb="select"], .stRadio div[role="radiogroup"], textarea {
         border-radius: 14px !important;
+    }
+
+    .stTextInput input, textarea, .stSelectbox div[data-baseweb="select"] {
+        border: 1px solid rgba(216,27,96,0.14) !important;
     }
 
     [data-testid="stFileUploader"] section {
         border-radius: 18px !important;
-        border: 1px dashed rgba(216, 27, 96, 0.45) !important;
+        border: 1.5px dashed rgba(216, 27, 96, 0.45) !important;
         background: rgba(252, 228, 236, 0.32);
     }
 
-    .result-container {
-        background-color: #FFFFFF;
-        padding: 24px;
-        border-radius: 20px;
-        border-left: 6px solid var(--ddc-pink);
-        line-height: 1.75;
-        white-space: normal;
-        box-shadow: 0 12px 30px rgba(17, 24, 39, 0.05);
-    }
-
-    .sidebar-footer {
-        color: #FFFFFF !important;
-        font-size: 13px;
-        font-weight: 400;
-        margin-top: 20px;
-        padding: 13px;
-        background-color: rgba(255, 255, 255, 0.15);
-        border: 1px solid rgba(255, 255, 255, 0.18);
+    .info-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(124,58,237,0.07);
+        border: 1px solid rgba(124,58,237,0.12);
+        color: #4C1D95;
         border-radius: 16px;
-        line-height: 1.65;
+        padding: 12px 14px;
+        line-height: 1.55;
+        margin-top: 12px;
     }
 
     .small-note {
         color: #6B7280;
         font-size: 0.92rem;
         line-height: 1.65;
-        background: rgba(255,255,255,0.72);
+        background: rgba(255,255,255,0.74);
         border: 1px solid rgba(216, 27, 96, 0.10);
         border-radius: 16px;
         padding: 12px 14px;
@@ -423,18 +644,30 @@ st.markdown(
         margin: 8px 0 14px 0;
     }
 
-    @media (max-width: 760px) {
-        .hero-grid { flex-direction: column; align-items: flex-start; }
-        .metric-strip { grid-template-columns: 1fr; }
+    .results-placeholder {
+        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,247,251,0.92));
+        border: 1px dashed rgba(216,27,96,0.24);
+        border-radius: 20px;
+        padding: 28px 20px;
+        text-align: center;
+        color: var(--text-muted);
+        margin-top: 8px;
+    }
+
+    .results-placeholder i {
+        font-size: 2rem;
+        color: var(--ddc-pink);
+        display: block;
+        margin-bottom: 8px;
     }
 
     .guide-card {
         background: #FFFFFF;
         border: 1px solid rgba(216, 27, 96, 0.16);
-        border-radius: 18px;
-        padding: 22px 26px;
+        border-radius: 20px;
+        padding: 22px 24px;
         margin: 18px 0 22px 0;
-        box-shadow: 0 8px 24px rgba(136, 14, 79, 0.06);
+        box-shadow: var(--soft-shadow);
     }
 
     .clean-title {
@@ -452,10 +685,61 @@ st.markdown(
         line-height: 1.9;
         font-size: 1.02rem;
     }
+
+    .guide-mini-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+    }
+
+    .guide-mini {
+        background: rgba(252,228,236,0.46);
+        border: 1px solid rgba(216,27,96,0.12);
+        border-radius: 16px;
+        padding: 12px 12px;
+        color: var(--text-main);
+        font-size: 0.9rem;
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+    }
+
+    .guide-mini i {
+        color: var(--ddc-pink);
+        margin-top: 2px;
+    }
+
+    .sidebar-footer {
+        color: #FFFFFF !important;
+        font-size: 13px;
+        font-weight: 400;
+        margin-top: 8px;
+        padding: 13px;
+        background-color: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        line-height: 1.65;
+    }
+
+    @media (max-width: 1080px) {
+        .hero-layout { grid-template-columns: 1fr; }
+        .workshop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .metric-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .sub-card-grid, .guide-mini-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+        .hero-main { flex-direction: column; }
+        .hero-logo { width: 84px; height: 84px; }
+        .metric-strip, .workshop-grid { grid-template-columns: 1fr; }
+        .block-container { padding-top: 1rem; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 # -----------------------------
 # 2) System instruction
@@ -1089,23 +1373,42 @@ def create_word_doc(feedback_text: str, report_type: str, pii_findings: list[str
 # -----------------------------
 st.markdown(
     f"""
-    <div class="hero-box">
-        <div class="hero-grid">
-            <div class="hero-logo">
-                <img src="{DDC8_LOGO_URL}" alt="DDC8 Logo">
-            </div>
+    <div class="hero-shell">
+        <div class="hero-layout">
             <div>
-                <h1 class="hero-title">EpiScholar</h1>
-                <div class="hero-subtitle">
-                    ระบบประเมินรายงานสอบสวนโรคด้วย AI สำหรับงานระบาดวิทยาภาคสนาม<br>
-                    กลุ่มระบาดวิทยาและตอบโต้ภาวะฉุกเฉินทางสาธารณสุข สคร.8 อุดรธานี
+                <div class="hero-main">
+                    <div class="hero-logo">
+                        <img src="{DDC8_LOGO_URL}" alt="DDC8 Logo">
+                    </div>
+                    <div>
+                        <div class="hero-kicker"><i class="bi bi-stars"></i> Smart Academic Review Platform</div>
+                        <h1 class="hero-title">EpiScholar</h1>
+                        <div class="hero-subtitle">
+                            ระบบประเมินรายงานสอบสวนโรคด้วย AI สำหรับงานระบาดวิทยาภาคสนาม<br>
+                            ออกแบบให้ใช้งานง่าย อ่านสบายตา รองรับการอบรมหลายคน และช่วยตรวจคุณภาพรายงานอย่างเป็นระบบ
+                        </div>
+                        <div class="pill-row">
+                            <span class="pill"><i class="bi bi-journal-check"></i> 14 องค์ประกอบรายงาน</span>
+                            <span class="pill"><i class="bi bi-diagram-3"></i> Outbreak / Single Case</span>
+                            <span class="pill"><i class="bi bi-shield-lock"></i> PII Pre-scan</span>
+                            <span class="pill"><i class="bi bi-file-earmark-word"></i> Export Word</span>
+                            <span class="pill"><i class="bi bi-people"></i> Workshop Mode 30–50 users</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="pill-row">
-                    <span class="pill">14 องค์ประกอบรายงาน</span>
-                    <span class="pill">Outbreak / Single Case</span>
-                    <span class="pill">PII Pre-scan</span>
-                    <span class="pill">Export Word</span>
-                    <span class="pill">Workshop Mode 30–50 users</span>
+            </div>
+            <div class="hero-side">
+                <div class="feature-card">
+                    <div class="feature-head"><span class="icon-chip"><i class="bi bi-cpu"></i></span> AI Review Engine</div>
+                    <div class="feature-note">ตรวจหัวข้อสำคัญทางระบาดวิทยา พร้อมข้อเสนอแนะที่นำไปแก้ไขรายงานได้จริง</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-head"><span class="icon-chip"><i class="bi bi-hourglass-split"></i></span> Queue สำหรับห้องอบรม</div>
+                    <div class="feature-note">ใช้คิวแบบ FIFO ลดการชนกันของ API และช่วยให้ผู้ใช้หลายคนใช้งานพร้อมกันได้ลื่นขึ้น</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-head"><span class="icon-chip"><i class="bi bi-patch-check"></i></span> Ready for publication</div>
+                    <div class="feature-note">สรุประดับความพร้อม จุดแข็ง และสิ่งที่ต้องแก้ก่อนส่งตีพิมพ์ในมุมวิชาการ</div>
                 </div>
             </div>
         </div>
@@ -1117,9 +1420,22 @@ st.markdown(
 st.markdown(
     """
     <div class="metric-strip">
-        <div class="mini-metric"><div class="num">14</div><div class="label">หัวข้อประเมินหลัก</div></div>
-        <div class="mini-metric"><div class="num">0–3</div><div class="label">คะแนนรายองค์ประกอบ</div></div>
-        <div class="mini-metric"><div class="num">DOCX</div><div class="label">ดาวน์โหลดผลประเมิน</div></div>
+        <div class="mini-metric">
+            <span class="metric-icon"><i class="bi bi-list-check"></i></span>
+            <div><div class="num">14</div><div class="label">หัวข้อประเมินหลัก</div></div>
+        </div>
+        <div class="mini-metric">
+            <span class="metric-icon"><i class="bi bi-bar-chart"></i></span>
+            <div><div class="num">0–3</div><div class="label">คะแนนต่อองค์ประกอบ</div></div>
+        </div>
+        <div class="mini-metric">
+            <span class="metric-icon"><i class="bi bi-shield-lock"></i></span>
+            <div><div class="num">PII</div><div class="label">Masking ก่อนส่ง AI</div></div>
+        </div>
+        <div class="mini-metric">
+            <span class="metric-icon"><i class="bi bi-people"></i></span>
+            <div><div class="num">30–50</div><div class="label">เหมาะกับ Workshop Mode</div></div>
+        </div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -1127,17 +1443,38 @@ st.markdown(
 
 # Workshop Mode status (shared across sessions in this app instance)
 workshop_snapshot = WORKSHOP_QUEUE.snapshot()
-with st.expander("👥 Workshop Mode — สถานะการใช้งานรวม", expanded=False):
-    w1, w2, w3, w4 = st.columns(4)
-    w1.metric("กำลังวิเคราะห์", f"{workshop_snapshot['active']} / {workshop_snapshot['max_active']}")
-    w2.metric("กำลังรอ", workshop_snapshot["waiting"])
-    w3.metric("เสร็จแล้ว", workshop_snapshot["completed"])
-    w4.metric("งานทั้งหมด", workshop_snapshot["submitted"])
-    st.caption(
-        "โหมดห้องอบรมใช้คิวแบบมาก่อนได้ก่อน (FIFO) และให้ AI ทำงานพร้อมกันตามจำนวนที่กำหนด "
-        "เพื่อป้องกันการยิง API พร้อมกันมากเกินไป"
-    )
-
+st.markdown(
+    f"""
+    <div class="workshop-band">
+        <div class="workshop-head">
+            <div>
+                <div class="workshop-title"><span class="section-icon"><i class="bi bi-people-fill"></i></span> Workshop Mode — สถานะการใช้งานรวม</div>
+                <div class="workshop-subtitle">คิวแบบมาก่อนได้ก่อน (FIFO) และจำกัดจำนวนงาน AI พร้อมกัน เพื่อให้ใช้งานในห้องอบรมได้เสถียร</div>
+            </div>
+            <div class="pill"><i class="bi bi-lightning-charge"></i> Concurrent jobs: {workshop_snapshot['max_active']}</div>
+        </div>
+        <div class="workshop-grid">
+            <div class="status-card">
+                <div class="status-label"><i class="bi bi-cpu"></i> กำลังวิเคราะห์</div>
+                <div class="status-value">{workshop_snapshot['active']} / {workshop_snapshot['max_active']}</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label"><i class="bi bi-hourglass-split"></i> กำลังรอคิว</div>
+                <div class="status-value">{workshop_snapshot['waiting']}</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label"><i class="bi bi-check-circle"></i> เสร็จแล้ว</div>
+                <div class="status-value">{workshop_snapshot['completed']}</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label"><i class="bi bi-collection"></i> งานทั้งหมด</div>
+                <div class="status-value">{workshop_snapshot['submitted']}</div>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 with st.sidebar:
     st.markdown(
@@ -1150,7 +1487,8 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-    st.header("⚙️ ตั้งค่าระบบ")
+    st.markdown('<div class="sidebar-group">', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-title"><i class="bi bi-sliders2"></i> ตั้งค่าระบบ</div>', unsafe_allow_html=True)
     api_key_input = st.text_input(
         "🔑 Gemini API Key ของผู้ใช้งาน",
         type="password",
@@ -1172,7 +1510,10 @@ with st.sidebar:
         "การอบรมแบบหลายคน: ควรใช้คนละ API Key และคนละ Google Cloud Project "
         "เพื่อไม่ให้ใช้โควตาร่วมกัน"
     )
+    st.markdown('</div>', unsafe_allow_html=True)
 
+    st.markdown('<div class="sidebar-group">', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-title"><i class="bi bi-shield-check"></i> ความปลอดภัยข้อมูล</div>', unsafe_allow_html=True)
     mask_before_send = st.checkbox(
         "Mask PII ผู้ป่วยก่อนส่งเข้า AI",
         value=True,
@@ -1183,23 +1524,29 @@ with st.sidebar:
         value=False,
         help="เปิดเฉพาะกรณีต้องการทำเอกสารแบบนิรนามทั้งหมด ปกติชื่อผู้รายงานและทีมสอบสวนไม่ถือเป็นข้อมูลผู้ป่วย",
     )
-    st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True)
+
     st.markdown(
-        '<div class="sidebar-footer">พัฒนาเพื่อสนับสนุนการประเมินรายงานสอบสวนโรคฉบับสมบูรณ์ โดยเน้นความถูกต้องทางระบาดวิทยา ความปลอดภัยข้อมูล และความพร้อมต่อการตีพิมพ์</div>',
+        '<div class="sidebar-footer"><i class="bi bi-info-circle"></i> พัฒนาเพื่อสนับสนุนการประเมินรายงานสอบสวนโรคฉบับสมบูรณ์ โดยเน้นความถูกต้องทางระบาดวิทยา ความปลอดภัยข้อมูล และความพร้อมต่อการตีพิมพ์</div>',
         unsafe_allow_html=True,
     )
 
 st.markdown(
     """
     <div class="guide-card">
-        <div class="section-title clean-title">📖 วิธีการใช้งาน</div>
+        <div class="section-title clean-title"><span class="section-icon"><i class="bi bi-map"></i></span> วิธีการใช้งาน</div>
         <ol class="guide-list">
             <li>ผู้ใช้งานแต่ละคนกรอก Gemini API Key ของตนเองที่แถบด้านซ้าย</li>
             <li>เลือกประเภทการสอบสวน หรือเลือกให้ AI จำแนกจากเนื้อหารายงาน</li>
             <li>อัปโหลดไฟล์ PDF ที่เลือกข้อความได้ หรือไฟล์ DOCX</li>
-            <li>กดเริ่มตรวจสอบรายงาน</li>
-            <li>ดาวน์โหลดผลประเมินเป็นไฟล์ Word</li>
+            <li>กดเริ่มตรวจสอบรายงาน และรอคิวหากใช้งานพร้อมกันหลายคน</li>
+            <li>ดาวน์โหลดผลประเมินเป็นไฟล์ Word เพื่อนำไปแก้ไขต้นฉบับ</li>
         </ol>
+        <div class="guide-mini-grid">
+            <div class="guide-mini"><i class="bi bi-file-earmark-pdf"></i><div><strong>ไฟล์ต้นฉบับ</strong><br>PDF ควรเลือกข้อความได้ หรือใช้ DOCX ต้นฉบับ</div></div>
+            <div class="guide-mini"><i class="bi bi-shield-lock"></i><div><strong>PII Protection</strong><br>ระบบตรวจและ mask ข้อมูลผู้ป่วยก่อนวิเคราะห์ได้</div></div>
+            <div class="guide-mini"><i class="bi bi-people"></i><div><strong>Workshop Ready</strong><br>รองรับการใช้งานพร้อมกันด้วยระบบคิวกลาง</div></div>
+        </div>
         <div class="small-note">
             หมายเหตุ: ระบบมีการตรวจและ mask PII เบื้องต้น โดยเน้นข้อมูลผู้ป่วย/ผู้สัมผัส แต่ควรตรวจทานรายงานก่อนอัปโหลดทุกครั้ง
         </div>
@@ -1208,11 +1555,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-col1, col2 = st.columns([0.95, 1.55], gap="large")
+col1, col2 = st.columns([1.0, 1.25], gap="large")
 
 with col1:
     st.markdown('<div class="input-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📥 ข้อมูลนำเข้า</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title"><span class="section-icon"><i class="bi bi-inbox"></i></span> ข้อมูลนำเข้า</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="sub-card">
+            <div class="sub-card-grid">
+                <div class="sub-chip"><i class="bi bi-clipboard2-pulse"></i><div><strong>เลือกประเภท</strong><span>AI จำแนกเอง หรือกำหนดเป็น Outbreak / Single Case</span></div></div>
+                <div class="sub-chip"><i class="bi bi-cloud-arrow-up"></i><div><strong>อัปโหลดไฟล์</strong><span>รองรับ PDF และ DOCX เพื่อความยืดหยุ่นในการใช้งาน</span></div></div>
+                <div class="sub-chip"><i class="bi bi-search-heart"></i><div><strong>ตรวจคุณภาพไฟล์</strong><span>ระบบเช็กข้อความเบื้องต้นก่อนส่งต่อ AI</span></div></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     report_type = st.radio(
         "ประเภทการสอบสวน:",
         [
@@ -1222,15 +1581,16 @@ with col1:
         ],
         index=0,
     )
-    uploaded_file = st.file_uploader("อัปโหลดไฟล์รายงาน (PDF / DOCX)", type=["pdf", "docx"], max_upload_size=50)
+    uploaded_file = st.file_uploader("อัปโหลดไฟล์รายงาน (PDF / DOCX)", type=["pdf", "docx"])
 
     if uploaded_file:
-        st.caption(f"ไฟล์ที่เลือก: {uploaded_file.name}")
+        st.caption(f"📎 ไฟล์ที่เลือก: {uploaded_file.name}")
 
     st.markdown(
         """
-        <div class="small-note">
-        คำแนะนำ: PDF ควรเป็นไฟล์ที่ลากเลือกข้อความได้ หากเป็นภาพสแกนล้วนให้ทำ OCR ก่อน หรือใช้ต้นฉบับ DOCX
+        <div class="info-banner">
+            <i class="bi bi-lightbulb"></i>
+            <div>คำแนะนำ: PDF ควรเป็นไฟล์ที่ลากเลือกข้อความได้ หากเป็นภาพสแกนล้วนให้ทำ OCR ก่อน หรือใช้ต้นฉบับ DOCX เพื่อให้ AI อ่านเนื้อหาได้ครบมากขึ้น</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1239,7 +1599,7 @@ with col1:
 
 with col2:
     st.markdown('<div class="result-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📊 ผลการประเมิน</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title"><span class="section-icon"><i class="bi bi-clipboard-data"></i></span> ผลการประเมิน</div>', unsafe_allow_html=True)
 
     if "feedback" not in st.session_state:
         st.session_state.feedback = None
@@ -1339,11 +1699,20 @@ with col2:
         st.download_button(
             label="💾 ดาวน์โหลดผลการประเมิน (Word)",
             data=st.session_state.word_file,
-            file_name="EpiScholar_v2_Feedback.docx",
+            file_name="EpiScholar_Workshop_v4_Feedback.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
         )
     else:
-        st.info("อัปโหลดรายงาน PDF หรือ DOCX แล้วกดเริ่มตรวจสอบ เพื่อให้ระบบประเมินรายงานตามหลักระบาดวิทยา")
+        st.markdown(
+            """
+            <div class="results-placeholder">
+                <i class="bi bi-clipboard2-heart"></i>
+                <div><strong>ยังไม่มีผลการประเมิน</strong></div>
+                <div>อัปโหลดรายงาน PDF หรือ DOCX แล้วกดเริ่มตรวจสอบ เพื่อให้ระบบประเมินรายงานตามหลักระบาดวิทยา</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.markdown('</div>', unsafe_allow_html=True)
