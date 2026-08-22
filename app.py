@@ -5,6 +5,8 @@ import time
 import random
 import threading
 import hashlib
+import uuid
+from collections import deque
 from datetime import datetime
 
 import streamlit as st
@@ -28,10 +30,96 @@ DDC8_LOGO_FILE_ID = "1OWRqh2qNYdeWfJzjMq8u5LN8ZvJFAkjn"
 DDC8_LOGO_URL = f"https://drive.google.com/thumbnail?id={DDC8_LOGO_FILE_ID}&sz=w600"
 
 
-# จำกัดจำนวนงานพร้อมกันภายใน Streamlit instance เดียว
-# ผู้ใช้แต่ละคนใช้ API Key ของตนเอง แต่ยังต้องจำกัดภาระของแอปและลด request burst
+# Workshop Mode: จำกัดจำนวนงาน AI ที่รันพร้อมกันและจัดคิวแบบ FIFO
+# ค่าเริ่มต้น 6 เหมาะกับห้องอบรมประมาณ 30–50 คน โดยไม่ยิง Gemini พร้อมกันทั้งหมด
 MAX_CONCURRENT_AI_JOBS = int(os.getenv("MAX_CONCURRENT_AI_JOBS", "6"))
-AI_JOB_SEMAPHORE = threading.BoundedSemaphore(MAX_CONCURRENT_AI_JOBS)
+QUEUE_WAIT_TIMEOUT = int(os.getenv("QUEUE_WAIT_TIMEOUT", "600"))
+
+
+class WorkshopQueue:
+    """Process-level FIFO queue shared by all Streamlit sessions in one app instance."""
+
+    def __init__(self, max_active: int):
+        self.max_active = max(1, int(max_active))
+        self._lock = threading.Lock()
+        self._condition = threading.Condition(self._lock)
+        self._waiting = deque()
+        self._active = set()
+        self._submitted = 0
+        self._completed = 0
+        self._failed = 0
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {
+                "max_active": self.max_active,
+                "active": len(self._active),
+                "waiting": len(self._waiting),
+                "submitted": self._submitted,
+                "completed": self._completed,
+                "failed": self._failed,
+            }
+
+    def join_and_wait(self, job_id: str, timeout: int, status_callback=None) -> bool:
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            if job_id in self._active or job_id in self._waiting:
+                return False
+            self._waiting.append(job_id)
+            self._submitted += 1
+            self._condition.notify_all()
+
+            while True:
+                try:
+                    position = list(self._waiting).index(job_id) + 1
+                except ValueError:
+                    position = 0
+
+                can_start = (
+                    self._waiting
+                    and self._waiting[0] == job_id
+                    and len(self._active) < self.max_active
+                )
+                if can_start:
+                    self._waiting.popleft()
+                    self._active.add(job_id)
+                    self._condition.notify_all()
+                    return True
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    try:
+                        self._waiting.remove(job_id)
+                    except ValueError:
+                        pass
+                    self._condition.notify_all()
+                    return False
+
+                snap = {
+                    "active": len(self._active),
+                    "waiting": len(self._waiting),
+                    "position": position,
+                    "max_active": self.max_active,
+                }
+                # callback is intentionally called outside a long wait but still under lock; keep it lightweight
+                if status_callback:
+                    try:
+                        status_callback(snap)
+                    except Exception:
+                        pass
+                self._condition.wait(timeout=min(1.0, remaining))
+
+    def finish(self, job_id: str, success: bool) -> None:
+        with self._condition:
+            self._active.discard(job_id)
+            if success:
+                self._completed += 1
+            else:
+                self._failed += 1
+            self._condition.notify_all()
+
+
+WORKSHOP_QUEUE = WorkshopQueue(MAX_CONCURRENT_AI_JOBS)
 
 # -----------------------------
 # 1) Page config and style
@@ -855,51 +943,69 @@ def analyze_report_with_retry(
     report_type: str,
     model_name: str,
     pii_findings: list[str],
+    job_id: str,
 ) -> str:
-    """
-    One Gemini request per report, using each user's API key and a process-level queue.
-
-    Previous version used two rounds and retried each round up to three times.
-    Under concurrent use this could multiply API traffic to six requests per user.
-    """
+    """One Gemini request per report with Workshop Mode FIFO queue and one retry."""
     prompt = build_full_review_prompt(text, report_type, pii_findings)
     max_attempts = 2
+    queue_status = st.empty()
 
-    acquired = AI_JOB_SEMAPHORE.acquire(timeout=180)
-    if not acquired:
-        return (
-            "❌ คิววิเคราะห์หนาแน่นเกินไป กรุณารอ 2–3 นาทีแล้วกดใหม่ "
-            "ระบบจำกัดจำนวนงานพร้อมกันเพื่อป้องกันแอปทำงานหนักเกินไป"
+    def render_queue_status(snap: dict) -> None:
+        pos = snap.get("position", 0)
+        active = snap.get("active", 0)
+        waiting = snap.get("waiting", 0)
+        max_active = snap.get("max_active", MAX_CONCURRENT_AI_JOBS)
+        queue_status.info(
+            f"🟡 Workshop Mode: อยู่ในคิวลำดับที่ {pos} | "
+            f"กำลังวิเคราะห์ {active}/{max_active} งาน | รอทั้งหมด {waiting} งาน"
         )
 
+    acquired = WORKSHOP_QUEUE.join_and_wait(
+        job_id=job_id,
+        timeout=QUEUE_WAIT_TIMEOUT,
+        status_callback=render_queue_status,
+    )
+    if not acquired:
+        queue_status.empty()
+        return (
+            "❌ คิววิเคราะห์หนาแน่นหรือรอนานเกินกำหนด กรุณากดเริ่มใหม่อีกครั้ง "
+            "ระบบยังคงจำกัดจำนวนงานพร้อมกันเพื่อให้ผู้ใช้ทั้งห้องใช้งานได้เสถียร"
+        )
+
+    success = False
     try:
+        snap = WORKSHOP_QUEUE.snapshot()
+        queue_status.success(
+            f"🔵 ถึงคิวแล้ว กำลังวิเคราะห์ | "
+            f"กำลังทำงาน {snap['active']}/{snap['max_active']} งาน"
+        )
+
         for attempt in range(max_attempts):
             try:
-                with st.spinner(
-                    f"⏳ กำลังวิเคราะห์รายงาน (คิวพร้อมกันสูงสุด {MAX_CONCURRENT_AI_JOBS} งาน)..."
-                ):
+                with st.spinner("⏳ Gemini กำลังประเมินรายงานตามเกณฑ์ระบาดวิทยา..."):
                     feedback = call_gemini_once(api_key, prompt, model_name)
 
                 if not feedback.strip():
                     return "❌ โมเดลไม่ส่งผลลัพธ์กลับมา กรุณาลองใหม่ หรือลดความยาวรายงาน"
 
                 feedback = ensure_required_sections(feedback)
+                success = True
                 return feedback
 
             except Exception as exc:
                 user_message, retryable = classify_api_error(exc)
-
                 if retryable and attempt < max_attempts - 1:
                     wait_time = 12 + random.randint(0, 5)
-                    st.warning(
-                        f"⚠️ API ไม่พร้อมชั่วคราว ระบบจะลองอีก 1 ครั้งใน {wait_time} วินาที..."
+                    queue_status.warning(
+                        f"⚠️ API ไม่พร้อมชั่วคราว ระบบจะลองอีก 1 ครั้งใน {wait_time} วินาที"
                     )
                     time.sleep(wait_time)
                     continue
-
                 return user_message
     finally:
-        AI_JOB_SEMAPHORE.release()
+        WORKSHOP_QUEUE.finish(job_id, success=success)
+        if success:
+            queue_status.success("✅ วิเคราะห์เสร็จแล้ว และคืนช่องวิเคราะห์ให้ผู้ใช้คนถัดไป")
 
 
 def add_markdown_like_line_to_doc(doc: Document, line: str) -> None:
@@ -999,6 +1105,7 @@ st.markdown(
                     <span class="pill">Outbreak / Single Case</span>
                     <span class="pill">PII Pre-scan</span>
                     <span class="pill">Export Word</span>
+                    <span class="pill">Workshop Mode 30–50 users</span>
                 </div>
             </div>
         </div>
@@ -1017,6 +1124,20 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+# Workshop Mode status (shared across sessions in this app instance)
+workshop_snapshot = WORKSHOP_QUEUE.snapshot()
+with st.expander("👥 Workshop Mode — สถานะการใช้งานรวม", expanded=False):
+    w1, w2, w3, w4 = st.columns(4)
+    w1.metric("กำลังวิเคราะห์", f"{workshop_snapshot['active']} / {workshop_snapshot['max_active']}")
+    w2.metric("กำลังรอ", workshop_snapshot["waiting"])
+    w3.metric("เสร็จแล้ว", workshop_snapshot["completed"])
+    w4.metric("งานทั้งหมด", workshop_snapshot["submitted"])
+    st.caption(
+        "โหมดห้องอบรมใช้คิวแบบมาก่อนได้ก่อน (FIFO) และให้ AI ทำงานพร้อมกันตามจำนวนที่กำหนด "
+        "เพื่อป้องกันการยิง API พร้อมกันมากเกินไป"
+    )
+
 
 with st.sidebar:
     st.markdown(
@@ -1126,6 +1247,7 @@ with col2:
         st.session_state.pii_findings = []
         st.session_state.is_processing = False
         st.session_state.review_cache = {}
+        st.session_state.active_job_id = None
 
     start_clicked = st.button(
         "🚀 เริ่มตรวจสอบรายงาน",
@@ -1138,7 +1260,7 @@ with col2:
         if not api_key_input:
             st.warning("⚠️ กรุณากรอก Gemini API Key ของผู้ใช้งานก่อน")
         elif not uploaded_file:
-            st.warning("⚠️ กรุณาอัปโหลดไฟล์ PDF ก่อนครับ")
+            st.warning("⚠️ กรุณาอัปโหลดไฟล์ PDF หรือ DOCX ก่อนครับ")
         else:
             st.session_state.is_processing = True
             raw_text = ""
@@ -1178,17 +1300,21 @@ with col2:
                     feedback = cached
                     st.info("ℹ️ ใช้ผลวิเคราะห์เดิมใน session นี้ เพื่อลดการเรียก API ซ้ำ")
                 else:
+                    if not st.session_state.active_job_id:
+                        st.session_state.active_job_id = uuid.uuid4().hex
                     feedback = analyze_report_with_retry(
                         api_key=api_key_input,
                         text=text_for_analysis,
                         report_type=report_type,
                         model_name=model_name,
                         pii_findings=pii_findings,
+                        job_id=st.session_state.active_job_id,
                     )
                     if feedback and not feedback.startswith("❌"):
                         st.session_state.review_cache[cache_key] = feedback
             finally:
                 st.session_state.is_processing = False
+                st.session_state.active_job_id = None
 
             if feedback.startswith("❌"):
                 st.error(feedback)
@@ -1218,6 +1344,6 @@ with col2:
             use_container_width=True,
         )
     else:
-        st.info("อัปโหลดรายงาน PDF แล้วกดเริ่มตรวจสอบ เพื่อให้ระบบประเมินรายงานตามหลักระบาดวิทยา")
+        st.info("อัปโหลดรายงาน PDF หรือ DOCX แล้วกดเริ่มตรวจสอบ เพื่อให้ระบบประเมินรายงานตามหลักระบาดวิทยา")
 
     st.markdown('</div>', unsafe_allow_html=True)
