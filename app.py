@@ -31,9 +31,24 @@ DDC8_LOGO_URL = f"https://drive.google.com/thumbnail?id={DDC8_LOGO_FILE_ID}&sz=w
 
 
 # Workshop Mode: จำกัดจำนวนงาน AI ที่รันพร้อมกันและจัดคิวแบบ FIFO
-# ค่าเริ่มต้น 6 เหมาะกับห้องอบรมประมาณ 30–50 คน โดยไม่ยิง Gemini พร้อมกันทั้งหมด
-MAX_CONCURRENT_AI_JOBS = int(os.getenv("MAX_CONCURRENT_AI_JOBS", "6"))
-QUEUE_WAIT_TIMEOUT = int(os.getenv("QUEUE_WAIT_TIMEOUT", "600"))
+# ค่าเริ่มต้น 3 เหมาะกับ Central API Mode สำหรับห้องอบรม 30–50 คน โดยให้ผู้ใช้ที่เหลือรอคิว FIFO
+MAX_CONCURRENT_AI_JOBS = int(os.getenv("MAX_CONCURRENT_AI_JOBS", "3"))
+QUEUE_WAIT_TIMEOUT = int(os.getenv("QUEUE_WAIT_TIMEOUT", "1800"))
+
+
+def get_central_api_key() -> str:
+    """Load the shared Gemini API key from Streamlit Secrets first, then environment variables."""
+    key = ""
+    try:
+        key = str(st.secrets.get("GEMINI_API_KEY", "") or "").strip()
+    except Exception:
+        key = ""
+    if not key:
+        key = str(os.getenv("GEMINI_API_KEY", "") or "").strip()
+    return key
+
+
+CENTRAL_GEMINI_API_KEY = get_central_api_key()
 
 
 class WorkshopQueue:
@@ -502,13 +517,38 @@ st.markdown(
         background: rgba(255, 255, 255, 0.82);
     }
 
-    .input-card, .result-card {
+    .input-card, .result-card, .helper-card {
         background: rgba(255, 255, 255, 0.90);
         border: 1px solid var(--card-border);
         border-radius: 24px;
         padding: 22px 22px;
         box-shadow: var(--card-shadow);
         min-height: 100%;
+    }
+
+    .result-card.result-fullwidth {
+        margin-top: 18px;
+    }
+
+    .result-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+    }
+
+    .helper-list {
+        margin: 6px 0 0 0;
+        padding-left: 1.1rem;
+        color: var(--text-main);
+        line-height: 1.8;
+        font-size: 0.95rem;
+    }
+
+    .helper-list li {
+        margin-bottom: 4px;
     }
 
     .section-title {
@@ -1385,14 +1425,14 @@ st.markdown(
                         <h1 class="hero-title">EpiScholar</h1>
                         <div class="hero-subtitle">
                             ระบบประเมินรายงานสอบสวนโรคด้วย AI สำหรับงานระบาดวิทยาภาคสนาม<br>
-                            ออกแบบให้ใช้งานง่าย อ่านสบายตา รองรับการอบรมหลายคน และช่วยตรวจคุณภาพรายงานอย่างเป็นระบบ
+                            ออกแบบให้ใช้งานง่าย อ่านสบายตา รองรับการอบรมหลายคนด้วย Central API + FIFO Queue และช่วยตรวจคุณภาพรายงานอย่างเป็นระบบ
                         </div>
                         <div class="pill-row">
                             <span class="pill"><i class="bi bi-journal-check"></i> 14 องค์ประกอบรายงาน</span>
                             <span class="pill"><i class="bi bi-diagram-3"></i> Outbreak / Single Case</span>
                             <span class="pill"><i class="bi bi-shield-lock"></i> PII Pre-scan</span>
                             <span class="pill"><i class="bi bi-file-earmark-word"></i> Export Word</span>
-                            <span class="pill"><i class="bi bi-people"></i> Workshop Mode 30–50 users</span>
+                            <span class="pill"><i class="bi bi-people"></i> Central API + Workshop Queue</span>
                         </div>
                     </div>
                 </div>
@@ -1430,7 +1470,7 @@ st.markdown(
         </div>
         <div class="mini-metric">
             <span class="metric-icon"><i class="bi bi-shield-lock"></i></span>
-            <div><div class="num">PII</div><div class="label">Masking ก่อนส่ง AI</div></div>
+            <div><div class="num">Central</div><div class="label">API Key กลางจาก Server</div></div>
         </div>
         <div class="mini-metric">
             <span class="metric-icon"><i class="bi bi-people"></i></span>
@@ -1489,15 +1529,12 @@ with st.sidebar:
     )
     st.markdown('<div class="sidebar-group">', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-title"><i class="bi bi-sliders2"></i> ตั้งค่าระบบ</div>', unsafe_allow_html=True)
-    api_key_input = st.text_input(
-        "🔑 Gemini API Key ของผู้ใช้งาน",
-        type="password",
-        help=(
-            "ให้ผู้ใช้งานแต่ละคนกรอก API Key ของตนเอง "
-            "แนะนำให้สร้างจาก Google Cloud Project ของตนเองเพื่อแยกโควตา"
-        ),
-        placeholder="กรอก Gemini API Key ของคุณ",
-    )
+    if CENTRAL_GEMINI_API_KEY:
+        st.success("🔐 Central API พร้อมใช้งาน")
+        st.caption("ผู้ใช้งานไม่ต้องกรอก API Key ระบบจะใช้ Key กลางที่เก็บไว้บน server")
+    else:
+        st.error("⚠️ ยังไม่ได้ตั้งค่า Central API Key บน server")
+        st.caption("ผู้ดูแลระบบต้องตั้งค่า GEMINI_API_KEY ใน Streamlit Secrets หรือ Environment Variable")
     default_model = os.getenv("GEMINI_DEFAULT_MODEL", "gemini-2.5-flash")
     model_options = list(dict.fromkeys([default_model, "gemini-2.5-flash", "gemini-2.5-pro"]))
     model_name = st.selectbox(
@@ -1507,8 +1544,7 @@ with st.sidebar:
         help="การใช้งานพร้อมกันหลายคนควรใช้ Flash เพื่อลดเวลาและการใช้โควตา",
     )
     st.caption(
-        "การอบรมแบบหลายคน: ควรใช้คนละ API Key และคนละ Google Cloud Project "
-        "เพื่อไม่ให้ใช้โควตาร่วมกัน"
+        "Central API Mode: ผู้ใช้ทุกคนใช้ API Key กลางของระบบ และระบบจัดคิว FIFO เพื่อควบคุมการใช้งานพร้อมกัน"
     )
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1536,7 +1572,7 @@ st.markdown(
     <div class="guide-card">
         <div class="section-title clean-title"><span class="section-icon"><i class="bi bi-map"></i></span> วิธีการใช้งาน</div>
         <ol class="guide-list">
-            <li>ผู้ใช้งานแต่ละคนกรอก Gemini API Key ของตนเองที่แถบด้านซ้าย</li>
+            <li>ระบบเชื่อมต่อ Gemini ด้วย Central API Key ที่ผู้ดูแลตั้งค่าไว้ ผู้ใช้งานไม่ต้องกรอก Key</li>
             <li>เลือกประเภทการสอบสวน หรือเลือกให้ AI จำแนกจากเนื้อหารายงาน</li>
             <li>อัปโหลดไฟล์ PDF ที่เลือกข้อความได้ หรือไฟล์ DOCX</li>
             <li>กดเริ่มตรวจสอบรายงาน และรอคิวหากใช้งานพร้อมกันหลายคน</li>
@@ -1555,9 +1591,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-col1, col2 = st.columns([1.0, 1.25], gap="large")
+top_col1, top_col2 = st.columns([1.18, 0.82], gap="large")
 
-with col1:
+with top_col1:
     st.markdown('<div class="input-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title"><span class="section-icon"><i class="bi bi-inbox"></i></span> ข้อมูลนำเข้า</div>', unsafe_allow_html=True)
     st.markdown(
@@ -1597,122 +1633,148 @@ with col1:
     )
     st.markdown('</div>', unsafe_allow_html=True)
 
-with col2:
-    st.markdown('<div class="result-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title"><span class="section-icon"><i class="bi bi-clipboard-data"></i></span> ผลการประเมิน</div>', unsafe_allow_html=True)
+with top_col2:
+    st.markdown('<div class="helper-card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title"><span class="section-icon"><i class="bi bi-magic"></i></span> ก่อนเริ่มวิเคราะห์</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="sub-card">
+            <div class="sub-card-grid">
+                <div class="sub-chip"><i class="bi bi-shield-check"></i><div><strong>Central API</strong><span>ผู้ใช้ไม่ต้องกรอก API Key ระบบใช้ Key กลางจาก Server</span></div></div>
+                <div class="sub-chip"><i class="bi bi-hourglass-split"></i><div><strong>Queue กลาง</strong><span>ถ้าใช้งานพร้อมกันหลายคน ระบบจะเข้าคิวและเรียก AI ตามลำดับ</span></div></div>
+                <div class="sub-chip"><i class="bi bi-file-earmark-check"></i><div><strong>ผลลัพธ์พร้อมใช้</strong><span>เมื่อวิเคราะห์เสร็จ สามารถดาวน์โหลด Word ไปแก้ต้นฉบับต่อได้</span></div></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <ul class="helper-list">
+            <li>ไฟล์ที่เหมาะที่สุดคือ <strong>DOCX</strong> หรือ PDF ที่เลือกข้อความได้</li>
+            <li>ถ้าคนใช้งานจำนวนมาก ระบบจะแสดงสถานะคิวให้โดยอัตโนมัติ</li>
+            <li>ส่วน <strong>ผลการประเมิน</strong> จะแสดงแบบเต็มความกว้างด้านล่างเพื่อให้อ่านง่ายขึ้น</li>
+        </ul>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    if "feedback" not in st.session_state:
-        st.session_state.feedback = None
-        st.session_state.word_file = None
-        st.session_state.pii_findings = []
-        st.session_state.is_processing = False
-        st.session_state.review_cache = {}
-        st.session_state.active_job_id = None
+if "feedback" not in st.session_state:
+    st.session_state.feedback = None
+    st.session_state.word_file = None
+    st.session_state.pii_findings = []
+    st.session_state.is_processing = False
+    st.session_state.review_cache = {}
+    st.session_state.active_job_id = None
 
-    start_clicked = st.button(
-        "🚀 เริ่มตรวจสอบรายงาน",
-        type="primary",
+st.markdown('<div class="result-card result-fullwidth">', unsafe_allow_html=True)
+st.markdown('<div class="result-toolbar"><div class="section-title"><span class="section-icon"><i class="bi bi-clipboard-data"></i></span> ผลการประเมิน</div></div>', unsafe_allow_html=True)
+
+start_clicked = st.button(
+    "🚀 เริ่มตรวจสอบรายงาน",
+    type="primary",
+    use_container_width=True,
+    disabled=st.session_state.is_processing,
+)
+
+if start_clicked:
+    if not CENTRAL_GEMINI_API_KEY:
+        st.error("❌ ระบบยังไม่ได้ตั้งค่า Central API Key กรุณาแจ้งผู้ดูแลระบบ")
+    elif not uploaded_file:
+        st.warning("⚠️ กรุณาอัปโหลดไฟล์ PDF หรือ DOCX ก่อนครับ")
+    else:
+        st.session_state.is_processing = True
+        raw_text = ""
+        try:
+            with st.spinner("⏳ EpiScholar กำลังอ่านข้อความจากไฟล์..."):
+                raw_text = extract_report_text(uploaded_file)
+            source_quality = assess_source_quality(raw_text, uploaded_file.name)
+            if source_quality["warnings"]:
+                for warning in source_quality["warnings"]:
+                    st.warning(f"⚠️ {warning}")
+            if source_quality["chars"] < 500:
+                st.error("❌ ระบบอ่านข้อความได้น้อยเกินไป จึงยังไม่ส่งข้อมูลเข้า AI เพื่อป้องกันการประเมินคลาดเคลื่อน")
+                st.session_state.is_processing = False
+                st.stop()
+            st.caption(
+                f"อ่านข้อความได้ประมาณ {source_quality['words']:,} คำ / {source_quality['chars']:,} ตัวอักษร"
+                + (f" / {source_quality['pages']} หน้า" if source_quality['pages'] else "")
+            )
+        except Exception as exc:
+            st.session_state.is_processing = False
+            st.error(str(exc))
+            st.stop()
+
+        pii_findings = scan_pii(raw_text, strict_staff_names=strict_staff_names)
+        text_for_analysis = mask_pii(raw_text, strict_staff_names=strict_staff_names) if mask_before_send else raw_text
+
+        if pii_findings:
+            st.warning("⚠️ ตรวจพบข้อมูลที่อาจเป็น PII ระบบได้ mask เบื้องต้นก่อนวิเคราะห์แล้ว" if mask_before_send else "⚠️ ตรวจพบข้อมูลที่อาจเป็น PII แต่ขณะนี้ไม่ได้เปิดการ mask")
+            with st.expander("ดูประเภทข้อมูลที่ตรวจพบ", expanded=False):
+                for item in pii_findings:
+                    st.write(f"- {item}")
+
+        cache_key = make_review_cache_key(text_for_analysis, report_type, model_name)
+        try:
+            cached = st.session_state.review_cache.get(cache_key)
+            if cached:
+                feedback = cached
+                st.info("ℹ️ ใช้ผลวิเคราะห์เดิมใน session นี้ เพื่อลดการเรียก API ซ้ำ")
+            else:
+                if not st.session_state.active_job_id:
+                    st.session_state.active_job_id = uuid.uuid4().hex
+                feedback = analyze_report_with_retry(
+                    api_key=CENTRAL_GEMINI_API_KEY,
+                    text=text_for_analysis,
+                    report_type=report_type,
+                    model_name=model_name,
+                    pii_findings=pii_findings,
+                    job_id=st.session_state.active_job_id,
+                )
+                if feedback and not feedback.startswith("❌"):
+                    st.session_state.review_cache[cache_key] = feedback
+        finally:
+            st.session_state.is_processing = False
+            st.session_state.active_job_id = None
+
+        if feedback.startswith("❌"):
+            st.error(feedback)
+        else:
+            st.session_state.feedback = feedback
+            st.session_state.pii_findings = pii_findings
+            st.session_state.word_file = create_word_doc(feedback, report_type, pii_findings)
+            st.markdown('<div class="success-card">✅ วิเคราะห์เสร็จสมบูรณ์ พร้อมดาวน์โหลดเป็น Word</div>', unsafe_allow_html=True)
+
+if st.session_state.feedback:
+    st.markdown("### ผลลัพธ์")
+    score_summary = parse_score_summary(st.session_state.feedback)
+    if score_summary["count"] == 14:
+        m1, m2, m3 = st.columns(3)
+        m1.metric("คะแนนรวม", f"{score_summary['total']} / {score_summary['max']}")
+        m2.metric("ร้อยละ", f"{score_summary['pct']}%")
+        m3.metric("องค์ประกอบที่ประเมิน", "14 / 14")
+    else:
+        st.warning(f"⚠️ ตรวจจับคะแนนได้ {score_summary['count']} จาก 14 หัวข้อ ควรตรวจผลลัพธ์ก่อนนำไปใช้")
+    st.markdown(st.session_state.feedback)
+
+    st.download_button(
+        label="💾 ดาวน์โหลดผลการประเมิน (Word)",
+        data=st.session_state.word_file,
+        file_name="EpiScholar_Workshop_v6_Wide_Result.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         use_container_width=True,
-        disabled=st.session_state.is_processing,
+    )
+else:
+    st.markdown(
+        """
+        <div class="results-placeholder">
+            <i class="bi bi-clipboard2-heart"></i>
+            <div><strong>ยังไม่มีผลการประเมิน</strong></div>
+            <div>อัปโหลดรายงาน PDF หรือ DOCX แล้วกดเริ่มตรวจสอบ เพื่อให้ระบบประเมินรายงานตามหลักระบาดวิทยา</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    if start_clicked:
-        if not api_key_input:
-            st.warning("⚠️ กรุณากรอก Gemini API Key ของผู้ใช้งานก่อน")
-        elif not uploaded_file:
-            st.warning("⚠️ กรุณาอัปโหลดไฟล์ PDF หรือ DOCX ก่อนครับ")
-        else:
-            st.session_state.is_processing = True
-            raw_text = ""
-            try:
-                with st.spinner("⏳ EpiScholar กำลังอ่านข้อความจากไฟล์..."):
-                    raw_text = extract_report_text(uploaded_file)
-                source_quality = assess_source_quality(raw_text, uploaded_file.name)
-                if source_quality["warnings"]:
-                    for warning in source_quality["warnings"]:
-                        st.warning(f"⚠️ {warning}")
-                if source_quality["chars"] < 500:
-                    st.error("❌ ระบบอ่านข้อความได้น้อยเกินไป จึงยังไม่ส่งข้อมูลเข้า AI เพื่อป้องกันการประเมินคลาดเคลื่อน")
-                    st.session_state.is_processing = False
-                    st.stop()
-                st.caption(
-                    f"อ่านข้อความได้ประมาณ {source_quality['words']:,} คำ / {source_quality['chars']:,} ตัวอักษร"
-                    + (f" / {source_quality['pages']} หน้า" if source_quality['pages'] else "")
-                )
-            except Exception as exc:
-                st.session_state.is_processing = False
-                st.error(str(exc))
-                st.stop()
-
-            pii_findings = scan_pii(raw_text, strict_staff_names=strict_staff_names)
-            text_for_analysis = mask_pii(raw_text, strict_staff_names=strict_staff_names) if mask_before_send else raw_text
-
-            if pii_findings:
-                st.warning("⚠️ ตรวจพบข้อมูลที่อาจเป็น PII ระบบได้ mask เบื้องต้นก่อนวิเคราะห์แล้ว" if mask_before_send else "⚠️ ตรวจพบข้อมูลที่อาจเป็น PII แต่ขณะนี้ไม่ได้เปิดการ mask")
-                with st.expander("ดูประเภทข้อมูลที่ตรวจพบ", expanded=False):
-                    for item in pii_findings:
-                        st.write(f"- {item}")
-
-            cache_key = make_review_cache_key(text_for_analysis, report_type, model_name)
-            try:
-                cached = st.session_state.review_cache.get(cache_key)
-                if cached:
-                    feedback = cached
-                    st.info("ℹ️ ใช้ผลวิเคราะห์เดิมใน session นี้ เพื่อลดการเรียก API ซ้ำ")
-                else:
-                    if not st.session_state.active_job_id:
-                        st.session_state.active_job_id = uuid.uuid4().hex
-                    feedback = analyze_report_with_retry(
-                        api_key=api_key_input,
-                        text=text_for_analysis,
-                        report_type=report_type,
-                        model_name=model_name,
-                        pii_findings=pii_findings,
-                        job_id=st.session_state.active_job_id,
-                    )
-                    if feedback and not feedback.startswith("❌"):
-                        st.session_state.review_cache[cache_key] = feedback
-            finally:
-                st.session_state.is_processing = False
-                st.session_state.active_job_id = None
-
-            if feedback.startswith("❌"):
-                st.error(feedback)
-            else:
-                st.session_state.feedback = feedback
-                st.session_state.pii_findings = pii_findings
-                st.session_state.word_file = create_word_doc(feedback, report_type, pii_findings)
-                st.markdown('<div class="success-card">✅ วิเคราะห์เสร็จสมบูรณ์ พร้อมดาวน์โหลดเป็น Word</div>', unsafe_allow_html=True)
-
-    if st.session_state.feedback:
-        st.markdown("### ผลลัพธ์")
-        score_summary = parse_score_summary(st.session_state.feedback)
-        if score_summary["count"] == 14:
-            m1, m2, m3 = st.columns(3)
-            m1.metric("คะแนนรวม", f"{score_summary['total']} / {score_summary['max']}")
-            m2.metric("ร้อยละ", f"{score_summary['pct']}%")
-            m3.metric("องค์ประกอบที่ประเมิน", "14 / 14")
-        else:
-            st.warning(f"⚠️ ตรวจจับคะแนนได้ {score_summary['count']} จาก 14 หัวข้อ ควรตรวจผลลัพธ์ก่อนนำไปใช้")
-        st.markdown(st.session_state.feedback)
-
-        st.download_button(
-            label="💾 ดาวน์โหลดผลการประเมิน (Word)",
-            data=st.session_state.word_file,
-            file_name="EpiScholar_Workshop_v4_Feedback.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
-        )
-    else:
-        st.markdown(
-            """
-            <div class="results-placeholder">
-                <i class="bi bi-clipboard2-heart"></i>
-                <div><strong>ยังไม่มีผลการประเมิน</strong></div>
-                <div>อัปโหลดรายงาน PDF หรือ DOCX แล้วกดเริ่มตรวจสอบ เพื่อให้ระบบประเมินรายงานตามหลักระบาดวิทยา</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
